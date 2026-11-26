@@ -1,0 +1,70 @@
+@import 'tailwindcss';
+@custom-variant dark (&:where(.dark, .dark *));
+@import './styles/fonts.css';
+@import './styles/tokens.css';
+
+@theme {
+  --color-bg: var(--efer-bg);
+  --color-rail: var(--efer-rail);
+  --color-card: var(--efer-card);
+  --color-card-subtle: var(--efer-card-subtle);
+  --color-text-primary: var(--efer-text-primary);
+  --color-text-secondary: var(--efer-text-secondary);
+  --color-placeholder: var(--efer-placeholder);
+  --color-border: var(--efer-border);
+  --color-accent: var(--efer-accent);
+  --color-accent-hover: var(--efer-accent-hover);
+  --color-accent-soft: var(--efer-accent-soft);
+  --color-user-surface: var(--efer-user-surface);
+  --color-user-text: var(--efer-user-text);
+  --color-danger: var(--efer-danger);
+  --color-warning: var(--efer-warning);
+
+  --radius-card: var(--efer-radius-card);
+  --radius-pill: var(--efer-radius-pill);
+  --radius-input: var(--efer-radius-input);
+
+  --spacing-screen: var(--efer-space-screen);
+  --spacing-card-gap: var(--efer-space-card-gap);
+
+  --font-sans: var(--efer-font-sans);
+  --font-mono: var(--efer-font-mono);
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    margin: 0;
+    background-color: var(--efer-bg);
+    color: var(--efer-text-primary);
+    font-family: var(--efer-font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+@keyframes efer-wave {
+  0%,
+  100% {
+    transform: scaleY(0.35);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+
+.efer-wave-bar {
+  animation: efer-wave 0.9s ease-in-out infinite;
+  transform-origin: center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .efer-wave-bar {
+    animation: none;
+  }
+}

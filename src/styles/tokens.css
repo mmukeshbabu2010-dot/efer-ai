@@ -1,0 +1,50 @@
+:root {
+  /* Light Mode Palette — EFER AI Locked Tokens */
+  --efer-bg: #faf9f6;
+  --efer-rail: #f3f1ec;
+  --efer-card: #ffffff;
+  --efer-card-subtle: #f1efea;
+  --efer-text-primary: #1a1918;
+  --efer-text-secondary: #6b6660;
+  --efer-placeholder: #5f5a54;
+  --efer-border: #e5e2de;
+  --efer-accent: #7c5cff;
+  --efer-accent-hover: #6744f5;
+  --efer-accent-soft: #f1effc;
+  --efer-user-surface: #1a1918;
+  --efer-user-text: #faf9f6;
+  --efer-danger: #dc2626;
+  --efer-warning: #9a5b13;
+
+  /* Geometry & Spacing Tokens */
+  --efer-radius-card: 16px;
+  --efer-radius-pill: 999px;
+  --efer-radius-input: 24px;
+  --efer-space-screen: 16px;
+  --efer-space-card-gap: 12px;
+
+  /* Typography Stacks */
+  --efer-font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+    'Segoe UI', sans-serif;
+  --efer-font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    monospace;
+}
+
+.dark {
+  /* Dark Mode Palette — EFER AI Locked Tokens */
+  --efer-bg: #1a1918;
+  --efer-rail: #201f1d;
+  --efer-card: #242322;
+  --efer-card-subtle: #2b2927;
+  --efer-text-primary: #edecea;
+  --efer-text-secondary: #a8a29e;
+  --efer-placeholder: #b8b2ab;
+  --efer-border: #3a3835;
+  --efer-accent: #7c5cff;
+  --efer-accent-hover: #9075ff;
+  --efer-accent-soft: #2a2442;
+  --efer-user-surface: #2d2b29;
+  --efer-user-text: #edecea;
+  --efer-danger: #ef4444;
+  --efer-warning: #f59e0b;
+}
