@@ -166,66 +166,6 @@ async function forwardOpenAiCompatibleStream(upstreamRes, res) {
   res.end();
 }
 
-async function forwardGeminiStream(upstreamRes, res) {
-  const contentType = upstreamRes.headers.get('content-type') ?? '';
-  if (!upstreamRes.body || contentType.includes('application/json')) {
-    const data = await upstreamRes.json();
-    const parts = data?.candidates?.[0]?.content?.parts ?? [];
-    const text = parts.map((p) => p?.text ?? '').join('');
-    res.writeHead(200, {
-      'Content-Type': 'application/json; charset=utf-8',
-      'Cache-Control': 'no-store',
-      'X-Content-Type-Options': 'nosniff',
-    });
-    res.end(JSON.stringify({ text }));
-    return;
-  }
-
-  res.writeHead(200, {
-    'Content-Type': 'text/event-stream; charset=utf-8',
-    'Cache-Control': 'no-store',
-    Connection: 'keep-alive',
-    'X-Content-Type-Options': 'nosniff',
-  });
-
-  const reader = upstreamRes.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = '';
-
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop() ?? '';
-
-      for (const rawLine of lines) {
-        const line = rawLine.trim();
-        if (!line.startsWith('data:')) continue;
-        const payload = line.slice(5).trim();
-        if (!payload || payload === '[DONE]') continue;
-        try {
-          const parsed = JSON.parse(payload);
-          const parts = parsed?.candidates?.[0]?.content?.parts ?? [];
-          for (const part of parts) {
-            if (typeof part?.text === 'string' && part.text.length > 0) {
-              writeSseText(res, part.text);
-            }
-          }
-        } catch {
-          // Ignore malformed SSE comment
-        }
-      }
-    }
-  } finally {
-    reader.releaseLock();
-  }
-
-  res.write('data: [DONE]\n\n');
-  res.end();
-}
-
 async function handleProxyChat(req, res, fetchImpl) {
   let body;
   try {
@@ -252,46 +192,7 @@ async function handleProxyChat(req, res, fetchImpl) {
 
   try {
     if (modelId === 'proxy:gemini-flash') {
-      const apiKey = process.env.GEMINI_API_KEY;
-      if (!apiKey) {
-        sendJsonError(res, 503, 'GEMINI_API_KEY is not configured on the server.');
-        return;
-      }
-
-      const systemParts = messages
-        .filter((m) => m.role === 'system')
-        .map((m) => ({ text: m.content }));
-      const contents = messages
-        .filter((m) => m.role !== 'system')
-        .map((m) => ({
-          role: m.role === 'assistant' ? 'model' : 'user',
-          parts: [{ text: m.content }],
-        }));
-
-      const upstreamRes = await fetchImpl(
-        'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:streamGenerateContent?alt=sse',
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-goog-api-key': apiKey,
-          },
-          body: JSON.stringify({
-            ...(systemParts.length > 0
-              ? { systemInstruction: { parts: systemParts } }
-              : {}),
-            contents,
-          }),
-          signal: controller.signal,
-        },
-      );
-
-      if (!upstreamRes.ok) {
-        sendJsonError(res, upstreamRes.status, `Upstream Gemini proxy HTTP ${upstreamRes.status}.`);
-        return;
-      }
-
-      await forwardGeminiStream(upstreamRes, res);
+      sendJsonError(res, 503, 'Gemini API integration is deferred and unavailable in this project.');
       return;
     }
 
@@ -390,7 +291,6 @@ export function createProductionServer(
     if (pathname === '/api/providers' && (method === 'GET' || method === 'HEAD')) {
       const body = JSON.stringify({
         configured: {
-          gemini: Boolean(process.env.GEMINI_API_KEY),
           groq: Boolean(process.env.GROQ_API_KEY),
           openrouter: Boolean(process.env.OPENROUTER_API_KEY),
         },

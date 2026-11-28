@@ -2,6 +2,8 @@ import { describe, expect, it, vi } from 'vitest';
 import { MockDemoAdapter } from '../../brain/adapters/MockDemoAdapter';
 import { AdapterRegistry } from '../../brain/adapters/ProviderAdapter';
 import { EferBrain } from '../../brain/eferBrain';
+import { NormalizedBrainError } from '../../brain/errors';
+import type { ProviderAdapter } from '../../brain/adapters/ProviderAdapter';
 import {
   DEFAULT_DEMO_FALLBACK_MODEL_ID,
   DEFAULT_DEMO_PRIMARY_MODEL_ID,
@@ -140,6 +142,75 @@ describe('EferBrain orchestrator', () => {
     }
     expect(shouldNotBeCalled).not.toHaveBeenCalled();
     expect(autoEvents.some((e) => e.type === 'fallback-switched')).toBe(true);
+  });
+
+  it('does not route an Incognito request to a different provider', async () => {
+    const primary = {
+      id: 'provider-a-primary', providerId: 'provider-a', displayName: 'Provider A',
+      shortDescription: 'test', capabilities: { chat: true, streaming: true, code: false, reasoning: false, vision: false, localExecution: false },
+      contextWindowTokens: 4096, privacyTier: 'local-device' as const, availability: 'active' as const, isDefault: true,
+    };
+    const otherProvider = {
+      ...primary, id: 'provider-b-fallback', providerId: 'provider-b', displayName: 'Provider B', isDefault: false,
+    };
+    const brain = new EferBrain({ modelRegistry: new ModelRegistry([primary, otherProvider]) });
+    const askConsent = vi.fn().mockResolvedValue('allow-once');
+    const events: BrainStreamEvent[] = [];
+
+    for await (const event of brain.streamTurn({
+      requestId: 'req-incognito-provider-boundary',
+      modelId: primary.id,
+      messages: makeUserHistory('Keep this request in Incognito'),
+      isIncognito: true,
+      onFallbackConsent: askConsent,
+    })) {
+      events.push(event);
+    }
+
+    expect(askConsent).not.toHaveBeenCalled();
+    expect(events.some((event) => event.type === 'fallback-pending')).toBe(false);
+    expect(events.some((event) => event.type === 'fallback-switched')).toBe(false);
+    expect(events.some((event) => event.type === 'error')).toBe(true);
+  });
+
+  it('withholds automatic fallback after partial response text has been emitted', async () => {
+    const primary = {
+      id: 'provider-a-primary', providerId: 'provider-a', displayName: 'Provider A',
+      shortDescription: 'test', capabilities: { chat: true, streaming: true, code: false, reasoning: false, vision: false, localExecution: false },
+      contextWindowTokens: 4096, privacyTier: 'local-device' as const, availability: 'active' as const, isDefault: true,
+    };
+    const fallback = { ...primary, id: 'provider-a-fallback', displayName: 'Provider A fallback', isDefault: false };
+    const adapter: ProviderAdapter = {
+      id: 'provider-a', displayName: 'Provider A', isMock: false,
+      supportsModel: (modelId) => modelId === primary.id,
+      checkHealth: async () => ({ providerId: 'provider-a', healthy: true, detail: 'test' }),
+      async *streamChat() {
+        yield { type: 'delta', text: 'partial answer' };
+        throw new NormalizedBrainError({
+          code: 'PROVIDER_UNAVAILABLE', message: 'Stream interrupted', providerId: 'provider-a',
+          modelId: primary.id, retryable: true, fallbackEligible: true,
+        });
+      },
+    };
+    const adapters = new AdapterRegistry();
+    adapters.register(adapter);
+    const brain = new EferBrain({ adapterRegistry: adapters, modelRegistry: new ModelRegistry([primary, fallback]) });
+    const events: BrainStreamEvent[] = [];
+
+    for await (const event of brain.streamTurn({
+      requestId: 'req-partial-output', modelId: primary.id,
+      messages: makeUserHistory('Continue safely'), isIncognito: false,
+    })) {
+      events.push(event);
+    }
+
+    expect(events.some((event) => event.type === 'delta' && event.text === 'partial answer')).toBe(true);
+    expect(events.some((event) => event.type === 'fallback-pending' || event.type === 'fallback-switched')).toBe(false);
+    const error = events.find((event) => event.type === 'error');
+    expect(error).toMatchObject({
+      type: 'error',
+      error: { fallbackEligible: false },
+    });
   });
 
   it('aborts streaming cleanly when AbortSignal fires', async () => {

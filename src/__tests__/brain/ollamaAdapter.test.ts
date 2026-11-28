@@ -1,17 +1,24 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
+  isLocalOllamaEndpoint,
   normalizeOllamaBaseUrl,
   OllamaAdapter,
 } from '../../brain/adapters/OllamaAdapter';
 import { normalizeProviderError } from '../../brain/errors';
 
 describe('OllamaAdapter', () => {
-  it('validates and normalizes http/https Ollama URLs and rejects unsafe schemes', () => {
+  it('allows local HTTP, requires HTTPS remotely, and rejects unsafe schemes', () => {
     expect(normalizeOllamaBaseUrl('http://localhost:11434/')).toBe(
       'http://localhost:11434',
     );
     expect(normalizeOllamaBaseUrl('https://ollama.example.local///')).toBe(
       'https://ollama.example.local',
+    );
+    expect(() => normalizeOllamaBaseUrl('http://192.168.1.20:11434')).toThrow(
+      /Remote Ollama endpoints must use HTTPS/i,
+    );
+    expect(normalizeOllamaBaseUrl('https://ollama.example.com')).toBe(
+      'https://ollama.example.com',
     );
     expect(() => normalizeOllamaBaseUrl('javascript:alert(1)')).toThrow(
       /http: or https:/i,
@@ -19,6 +26,12 @@ describe('OllamaAdapter', () => {
     expect(() => normalizeOllamaBaseUrl('ftp://localhost:11434')).toThrow(
       /http: or https:/i,
     );
+    expect(isLocalOllamaEndpoint('http://localhost:11434')).toBe(true);
+    expect(isLocalOllamaEndpoint('http://127.0.0.1:11434')).toBe(true);
+    expect(isLocalOllamaEndpoint('http://127.0.0.2:11434')).toBe(true);
+    expect(isLocalOllamaEndpoint('http://127.255.255.254:11434')).toBe(true);
+    expect(isLocalOllamaEndpoint('http://192.168.1.20:11434')).toBe(false);
+    expect(isLocalOllamaEndpoint('https://ollama.example.com')).toBe(false);
   });
 
   it('checks /api/tags health honestly on success and unreachable failure', async () => {
@@ -33,6 +46,10 @@ describe('OllamaAdapter', () => {
     const okStatus = await adapter.checkHealth();
     expect(okStatus.healthy).toBe(true);
     expect(okStatus.detail).toContain('2 local models detected');
+    expect(healthyFetch).toHaveBeenCalledWith(
+      'http://localhost:11434/api/tags',
+      expect.objectContaining({ redirect: 'error' }),
+    );
 
     const failingFetch = vi.fn(async () => {
       throw new Error('Connection refused');
@@ -76,6 +93,10 @@ describe('OllamaAdapter', () => {
       chunks.push(chunk);
     }
 
+    expect(mockFetch).toHaveBeenCalledWith(
+      'http://localhost:11434/api/chat',
+      expect.objectContaining({ redirect: 'error' }),
+    );
     expect(chunks).toEqual([
       { type: 'delta', text: 'Hello ' },
       { type: 'delta', text: 'world!' },

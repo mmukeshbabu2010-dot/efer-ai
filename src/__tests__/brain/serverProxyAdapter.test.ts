@@ -7,7 +7,7 @@ describe('ServerProxyAdapter', () => {
     const configuredFetch = vi.fn(async () =>
       new Response(
         JSON.stringify({
-          configured: { gemini: true, groq: false, openrouter: true },
+          configured: { groq: false, openrouter: true },
         }),
         { status: 200, headers: { 'Content-Type': 'application/json' } },
       ),
@@ -17,11 +17,10 @@ describe('ServerProxyAdapter', () => {
     const status = await adapter.inspectProxyProviders();
     expect(status.reachable).toBe(true);
     expect(status.configured).toEqual({
-      gemini: true,
       groq: false,
       openrouter: true,
     });
-    expect(status.detail).toContain('gemini, openrouter');
+    expect(status.detail).toContain('openrouter');
 
     const health = await adapter.checkHealth();
     expect(health.healthy).toBe(true);

@@ -60,8 +60,8 @@ export const INITIAL_MODEL_CATALOG: ModelDescriptor[] = [
   {
     id: 'proxy:gemini-flash',
     providerId: 'server-proxy',
-    displayName: 'Gemini 2.5 Flash (Server Proxy)',
-    shortDescription: 'Server-side /api/* proxy slot (requires GEMINI_API_KEY env var on server).',
+    displayName: 'Server Proxy · Planned',
+    shortDescription: 'Gemini API integration is deferred and unavailable in this project.',
     capabilities: {
       chat: true,
       streaming: true,
@@ -72,7 +72,7 @@ export const INITIAL_MODEL_CATALOG: ModelDescriptor[] = [
     },
     contextWindowTokens: 32768,
     privacyTier: 'server-proxy',
-    availability: 'disabled',
+    availability: 'planned',
   },
   {
     id: 'proxy:groq-llama',

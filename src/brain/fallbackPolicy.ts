@@ -9,6 +9,14 @@ export type FallbackConsentPrompt = (
   signal?: AbortSignal,
 ) => Promise<FallbackDecision>;
 
+function canUseRememberedPermission(request: FallbackConsentRequest): boolean {
+  return (
+    !request.isIncognito &&
+    request.fromModel.providerId === request.toModel.providerId &&
+    request.fromModel.privacyTier === request.toModel.privacyTier
+  );
+}
+
 export class FallbackCoordinator {
   private mode: FallbackMode;
 
@@ -33,7 +41,8 @@ export class FallbackCoordinator {
       throw new DOMException('The operation was aborted.', 'AbortError');
     }
 
-    if (this.mode === 'always-allow') {
+    const canRemember = canUseRememberedPermission(request);
+    if (this.mode === 'always-allow' && canRemember) {
       return 'allow-once';
     }
 
@@ -42,9 +51,12 @@ export class FallbackCoordinator {
     }
 
     const decision = await promptHandler(request, signal);
-    if (decision === 'always-allow') {
+    if (decision === 'always-allow' && canRemember) {
       this.mode = 'always-allow';
+      return 'always-allow';
     }
-    return decision;
+
+    // A cross-provider or cross-privacy-boundary choice is valid only once.
+    return decision === 'always-allow' ? 'allow-once' : decision;
   }
 }

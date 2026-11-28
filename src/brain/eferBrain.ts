@@ -147,7 +147,11 @@ export class EferBrain {
 
         const nextCandidate = this.models
           .getFallbackCandidates(currentModel.id, effectiveCapability)
-          .find((candidate) => !triedModelIds.has(candidate.id));
+          .find(
+            (candidate) =>
+              !triedModelIds.has(candidate.id) &&
+              (!input.isIncognito || candidate.providerId === currentModel.providerId),
+          );
 
         if (!nextCandidate) {
           yield makeTraceEvent(input.requestId, 'error', missingErr.message);
@@ -165,6 +169,7 @@ export class EferBrain {
           toModel: nextCandidate,
           reason: missingErr.message,
           errorCode: missingErr.code,
+          isIncognito: input.isIncognito,
         };
         yield makeTraceEvent(
           input.requestId,
@@ -333,13 +338,34 @@ export class EferBrain {
           modelId: currentModel.id,
         });
 
+        // Once answer text has reached the UI, restarting could duplicate or
+        // contradict visible output. Stop and let the user explicitly retry.
+        if (fullText.length > 0) {
+          const partialOutputError = { ...normalized.toShape(), fallbackEligible: false };
+          yield makeTraceEvent(
+            input.requestId,
+            'error',
+            'Provider stopped after partial output; automatic fallback was withheld.',
+          );
+          yield { type: 'error', requestId: input.requestId, error: partialOutputError };
+          return;
+        }
+
         const nextCandidate = normalized.fallbackEligible
           ? this.models
               .getFallbackCandidates(currentModel.id, effectiveCapability)
-              .find((candidate) => !triedModelIds.has(candidate.id)) ??
+              .find(
+                (candidate) =>
+                  !triedModelIds.has(candidate.id) &&
+                  (!input.isIncognito || candidate.providerId === currentModel.providerId),
+              ) ??
             this.models
               .getFallbackCandidates(currentModel.id)
-              .find((candidate) => !triedModelIds.has(candidate.id))
+              .find(
+                (candidate) =>
+                  !triedModelIds.has(candidate.id) &&
+                  (!input.isIncognito || candidate.providerId === currentModel.providerId),
+              )
           : undefined;
 
         if (!nextCandidate) {
@@ -362,6 +388,7 @@ export class EferBrain {
           toModel: nextCandidate,
           reason: normalized.message,
           errorCode: normalized.code,
+          isIncognito: input.isIncognito,
         };
 
         yield makeTraceEvent(

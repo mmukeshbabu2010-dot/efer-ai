@@ -14,7 +14,6 @@ export interface ServerProxyAdapterOptions {
 export interface ServerProxyStatus {
   reachable: boolean;
   configured: {
-    gemini: boolean;
     groq: boolean;
     openrouter: boolean;
   };
@@ -47,7 +46,7 @@ export class ServerProxyAdapter implements ProviderAdapter {
       if (!response.ok || !contentType.includes('application/json')) {
         return {
           reachable: false,
-          configured: { gemini: false, groq: false, openrouter: false },
+          configured: { groq: false, openrouter: false },
           detail:
             'No /api/providers backend is active on this host (normal for static-only hosting).',
         };
@@ -56,7 +55,6 @@ export class ServerProxyAdapter implements ProviderAdapter {
         configured?: Partial<ServerProxyStatus['configured']>;
       };
       const configured = {
-        gemini: Boolean(data.configured?.gemini),
         groq: Boolean(data.configured?.groq),
         openrouter: Boolean(data.configured?.openrouter),
       };
@@ -75,7 +73,7 @@ export class ServerProxyAdapter implements ProviderAdapter {
     } catch {
       return {
         reachable: false,
-        configured: { gemini: false, groq: false, openrouter: false },
+        configured: { groq: false, openrouter: false },
         detail: 'Server proxy endpoint is unreachable.',
       };
     }
