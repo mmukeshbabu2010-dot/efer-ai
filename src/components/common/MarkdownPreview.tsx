@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import { Check, Copy } from 'lucide-react';
+import { useOptionalToast } from '../../state/ToastContext';
 
 interface CodeBlockProps {
   lang: string;
@@ -9,6 +10,7 @@ interface CodeBlockProps {
 }
 
 function CodeBlock({ lang, codeText, codeKey, highlightQuery }: CodeBlockProps) {
+  const toast = useOptionalToast();
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async () => {
@@ -17,9 +19,19 @@ function CodeBlock({ lang, codeText, codeKey, highlightQuery }: CodeBlockProps) 
         await navigator.clipboard.writeText(codeText);
         setCopied(true);
         window.setTimeout(() => setCopied(false), 1600);
+        toast?.showToast({
+          message: 'Code copied to clipboard.',
+          variant: 'success',
+          durationMs: 2400,
+          dedupeKey: 'copy-code',
+        });
       }
     } catch {
-      // Ignore clipboard failures in restricted contexts
+      toast?.showToast({
+        message: 'Clipboard access unavailable in this browser context.',
+        variant: 'warning',
+        dedupeKey: 'copy-code',
+      });
     }
   };
 

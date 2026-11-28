@@ -11,6 +11,7 @@ import {
   Trash2,
   X,
 } from 'lucide-react';
+import { useOptionalToast } from '../../state/ToastContext';
 import { searchMemories } from '../../brain/memoryStore';
 import type { MemoryCategory, MemoryItem } from '../../brain/types';
 import type { Conversation } from '../../types/workspace';
@@ -53,6 +54,7 @@ export function MemoryView({
   onToggleConversationRemember,
   onBackToChat,
 }: MemoryViewProps) {
+  const toast = useOptionalToast();
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<MemoryCategory | 'all'>('all');
   const [newContent, setNewContent] = useState('');
@@ -81,6 +83,12 @@ export function MemoryView({
     }
     setNewContent('');
     setFormError(null);
+    toast?.showToast({
+      title: 'Memory updated',
+      message: 'Saved new entry to EFER Memory.',
+      variant: 'success',
+      dedupeKey: 'memory-action',
+    });
   };
 
   const startEditing = (item: MemoryItem) => {
@@ -93,7 +101,53 @@ export function MemoryView({
     const res = onUpdateMemory(id, editContent, editCategory);
     if (res.ok) {
       setEditingId(null);
+      toast?.showToast({
+        title: 'Memory updated',
+        message: 'Saved changes to memory entry.',
+        variant: 'success',
+        dedupeKey: 'memory-action',
+      });
+    } else if (res.error) {
+      toast?.showToast({
+        message: res.error,
+        variant: 'warning',
+        dedupeKey: 'memory-action',
+      });
     }
+  };
+
+  const handleDeleteMemory = (id: string) => {
+    onDeleteMemory(id);
+    toast?.showToast({
+      title: 'Memory updated',
+      message: 'Memory entry deleted.',
+      variant: 'info',
+      dedupeKey: 'memory-action',
+    });
+  };
+
+  const handleClearMemories = () => {
+    onClearMemories();
+    toast?.showToast({
+      title: 'Memory updated',
+      message: 'All saved memories cleared.',
+      variant: 'info',
+      dedupeKey: 'memory-action',
+    });
+  };
+
+  const handleToggleRemember = () => {
+    if (!activeConversation || isIncognito) return;
+    const willRemember = activeConversation.rememberThisChat === false;
+    onToggleConversationRemember(activeConversation.id);
+    toast?.showToast({
+      title: 'Memory updated',
+      message: willRemember
+        ? 'EFER Memory enabled for this chat.'
+        : 'EFER Memory paused for this chat.',
+      variant: 'info',
+      dedupeKey: 'chat-memory-toggle',
+    });
   };
 
   const rememberEnabled =
@@ -119,7 +173,7 @@ export function MemoryView({
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={onClearMemories}
+              onClick={handleClearMemories}
               disabled={memories.length === 0}
               className="inline-flex items-center gap-1.5 h-9 px-3 rounded-card border border-border bg-card text-xs font-medium text-text-primary hover:bg-card-subtle hover:border-danger/50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors whitespace-nowrap shrink-0 focus-visible:outline-2 focus-visible:outline-accent"
             >
@@ -161,11 +215,7 @@ export function MemoryView({
             aria-checked={rememberEnabled}
             aria-label="Remember this chat"
             disabled={isIncognito || activeConversation === null}
-            onClick={() => {
-              if (activeConversation && !isIncognito) {
-                onToggleConversationRemember(activeConversation.id);
-              }
-            }}
+            onClick={handleToggleRemember}
             className={`h-8 px-3 rounded-[10px] border text-xs font-medium whitespace-nowrap shrink-0 transition-colors focus-visible:outline-2 focus-visible:outline-accent ${
               isIncognito || !activeConversation
                 ? 'bg-card-subtle border-border text-text-secondary opacity-55 cursor-not-allowed'
@@ -394,7 +444,7 @@ export function MemoryView({
                         </button>
                         <button
                           type="button"
-                          onClick={() => onDeleteMemory(item.id)}
+                          onClick={() => handleDeleteMemory(item.id)}
                           aria-label="Delete memory"
                           className="inline-flex items-center justify-center w-8 h-8 rounded-[9px] border border-border bg-card-subtle text-text-secondary hover:text-danger hover:border-danger/40 transition-colors focus-visible:outline-2 focus-visible:outline-accent"
                         >

@@ -937,7 +937,7 @@ export function Composer({
                     <div className="px-2 pt-1 text-[11px] font-semibold text-text-secondary">
                       Model Registry
                     </div>
-                    <div className="space-y-1">
+                    <div className="space-y-1 max-h-72 overflow-y-auto overscroll-contain pr-0.5">
                       {availableModels.map((model) => {
                         const isSelected = model.id === selectedModelId;
                         const isActive = model.availability === 'active';

@@ -1,4 +1,5 @@
 import type { ChatMessage } from '../types/workspace';
+import { ClientByokAdapter } from './adapters/ClientByokAdapter';
 import { MockDemoAdapter } from './adapters/MockDemoAdapter';
 import { OllamaAdapter } from './adapters/OllamaAdapter';
 import { AdapterRegistry } from './adapters/ProviderAdapter';
@@ -67,9 +68,12 @@ export class EferBrain {
     this.fallback = options.fallbackCoordinator ?? new FallbackCoordinator('ask-first');
 
     if (this.adapters.list().length === 0) {
+      const byokAdapter = new ClientByokAdapter();
       this.adapters.register(new MockDemoAdapter());
       this.adapters.register(new OllamaAdapter());
       this.adapters.register(new ServerProxyAdapter());
+      this.adapters.register(byokAdapter);
+      byokAdapter.syncModelsToRegistry(this.models);
     }
   }
 

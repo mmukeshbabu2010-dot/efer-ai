@@ -1,5 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  CLIENT_BYOK_PROVIDER_ID,
+  ClientByokAdapter,
+  loadByokProvidersFromStorage,
+  saveByokProvidersToStorage,
+  toByokRegistryModelId,
+  validateByokDraft,
+  type ByokConnectionTestInput,
+  type ByokProviderConfig,
+  type ByokProviderDraft,
+} from '../brain/adapters/ClientByokAdapter';
+import {
   normalizeOllamaBaseUrl,
   OllamaAdapter,
 } from '../brain/adapters/OllamaAdapter';
@@ -137,6 +148,12 @@ export function useWorkspaceStore(options: WorkspaceStoreOptions = {}) {
 
   const [serverProxyStatus, setServerProxyStatus] = useState<ServerProxyStatus | null>(null);
   const [isCheckingProxy, setIsCheckingProxy] = useState<boolean>(false);
+  const [byokProviders, setByokProviders] = useState<ByokProviderConfig[]>(() => {
+    const adapter = brain.adapters.get(CLIENT_BYOK_PROVIDER_ID);
+    return adapter instanceof ClientByokAdapter
+      ? adapter.getProviders()
+      : loadByokProvidersFromStorage();
+  });
 
   const isIncognito = incognitoConversation !== null;
 
@@ -392,6 +409,143 @@ export function useWorkspaceStore(options: WorkspaceStoreOptions = {}) {
       if (isMountedRef.current) setIsCheckingProxy(false);
     }
   }, [brain]);
+
+  const syncByokList = useCallback(
+    (nextProviders: ByokProviderConfig[]) => {
+      saveByokProvidersToStorage(nextProviders);
+      const adapter = brain.adapters.get(CLIENT_BYOK_PROVIDER_ID);
+      if (adapter instanceof ClientByokAdapter) {
+        adapter.setProviders(nextProviders);
+        adapter.syncModelsToRegistry(brain.models);
+      }
+      setByokProviders(nextProviders);
+      setModelsVersion((prev) => prev + 1);
+
+      const currentModel = brain.models.getModel(selectedModelIdRef.current);
+      if (!currentModel || currentModel.availability !== 'active') {
+        const nextDefault =
+          brain.models.getDefaultModel()?.id ?? DEFAULT_DEMO_PRIMARY_MODEL_ID;
+        selectedModelIdRef.current = nextDefault;
+        setSelectedModelId(nextDefault);
+      }
+    },
+    [brain],
+  );
+
+  const addByokProvider = useCallback(
+    (
+      draft: ByokProviderDraft,
+    ): {
+      ok: boolean;
+      error?: string;
+      provider?: ByokProviderConfig;
+      registryModelId?: string;
+    } => {
+      const validation = validateByokDraft(draft);
+      if (!validation.ok) {
+        return { ok: false, error: validation.error };
+      }
+
+      idSequenceRef.current += 1;
+      const now = new Date().toISOString();
+      const provider: ByokProviderConfig = {
+        id: `custom-${Date.now()}-${idSequenceRef.current}`,
+        presetId: draft.presetId,
+        displayName: validation.cleanName,
+        baseUrl: validation.normalizedBaseUrl,
+        modelId: validation.cleanModelId,
+        apiKey: validation.cleanApiKey,
+        capabilities: validation.tags,
+        enabled: draft.enabled !== false,
+        createdAt: now,
+        updatedAt: now,
+      };
+
+      const next = [...byokProviders, provider];
+      syncByokList(next);
+      return {
+        ok: true,
+        provider,
+        registryModelId: toByokRegistryModelId(provider.id),
+      };
+    },
+    [byokProviders, syncByokList],
+  );
+
+  const updateByokProvider = useCallback(
+    (
+      id: string,
+      draft: ByokProviderDraft,
+    ): { ok: boolean; error?: string; provider?: ByokProviderConfig } => {
+      const validation = validateByokDraft(draft);
+      if (!validation.ok) {
+        return { ok: false, error: validation.error };
+      }
+
+      let updatedProvider: ByokProviderConfig | undefined;
+      const now = new Date().toISOString();
+      const next = byokProviders.map((item) => {
+        if (item.id !== id) return item;
+        updatedProvider = {
+          ...item,
+          presetId: draft.presetId,
+          displayName: validation.cleanName,
+          baseUrl: validation.normalizedBaseUrl,
+          modelId: validation.cleanModelId,
+          apiKey: validation.cleanApiKey,
+          capabilities: validation.tags,
+          enabled: draft.enabled ?? item.enabled,
+          updatedAt: now,
+        };
+        return updatedProvider;
+      });
+
+      if (!updatedProvider) {
+        return { ok: false, error: 'Custom API entry could not be found.' };
+      }
+
+      syncByokList(next);
+      return { ok: true, provider: updatedProvider };
+    },
+    [byokProviders, syncByokList],
+  );
+
+  const toggleByokProvider = useCallback(
+    (id: string, enabled?: boolean) => {
+      const now = new Date().toISOString();
+      const next = byokProviders.map((item) =>
+        item.id === id
+          ? {
+              ...item,
+              enabled: enabled !== undefined ? enabled : !item.enabled,
+              updatedAt: now,
+            }
+          : item,
+      );
+      syncByokList(next);
+    },
+    [byokProviders, syncByokList],
+  );
+
+  const deleteByokProvider = useCallback(
+    (id: string) => {
+      const next = byokProviders.filter((item) => item.id !== id);
+      syncByokList(next);
+    },
+    [byokProviders, syncByokList],
+  );
+
+  const testByokConnection = useCallback(
+    async (input: ByokConnectionTestInput): Promise<ProviderHealthStatus> => {
+      const adapter = brain.adapters.get(CLIENT_BYOK_PROVIDER_ID);
+      if (adapter instanceof ClientByokAdapter) {
+        return adapter.testConnection(input);
+      }
+      const fallbackAdapter = new ClientByokAdapter();
+      return fallbackAdapter.testConnection(input);
+    },
+    [brain],
+  );
 
   const stopGeneration = useCallback(() => {
     activeAbortControllerRef.current?.abort();
@@ -1417,6 +1571,12 @@ export function useWorkspaceStore(options: WorkspaceStoreOptions = {}) {
     serverProxyStatus,
     isCheckingProxy,
     checkServerProxy,
+    byokProviders,
+    addByokProvider,
+    updateByokProvider,
+    toggleByokProvider,
+    deleteByokProvider,
+    testByokConnection,
     fallbackMode,
     setFallbackMode,
     pendingFallback,

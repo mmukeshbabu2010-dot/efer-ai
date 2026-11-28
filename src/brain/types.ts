@@ -31,6 +31,9 @@ export interface ModelCapabilities {
   reasoning: boolean;
   vision: boolean;
   localExecution: boolean;
+  image?: boolean;
+  video?: boolean;
+  audio?: boolean;
 }
 
 export interface ModelDescriptor {

@@ -10,6 +10,7 @@ import {
   GitBranch,
   Trash2,
 } from 'lucide-react';
+import { useOptionalToast } from '../../state/ToastContext';
 import type { ActivityLogEntry } from '../../types/workspace';
 
 export type ActivityFilter = 'all' | 'success' | 'fallback' | 'error';
@@ -37,8 +38,18 @@ export function ActivityLogView({
   onClear,
   onBackToChat,
 }: ActivityLogViewProps) {
+  const toast = useOptionalToast();
   const [filter, setFilter] = useState<ActivityFilter>('all');
   const [expandedIds, setExpandedIds] = useState<Record<string, boolean>>({});
+
+  const handleClear = () => {
+    onClear();
+    toast?.showToast({
+      message: 'Activity log cleared.',
+      variant: 'info',
+      dedupeKey: 'activity-clear',
+    });
+  };
 
   const counts = useMemo(() => {
     let success = 0;
@@ -95,7 +106,7 @@ export function ActivityLogView({
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={onClear}
+              onClick={handleClear}
               disabled={entries.length === 0}
               className="inline-flex items-center gap-1.5 h-9 px-3 rounded-card border border-border bg-card text-xs font-medium text-text-primary hover:bg-card-subtle hover:border-danger/50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus-visible:outline-2 focus-visible:outline-accent"
             >

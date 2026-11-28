@@ -23,6 +23,7 @@ import {
   MarkdownPreview,
   stripMarkdownForSpeech,
 } from '../common/MarkdownPreview';
+import { useOptionalToast } from '../../state/ToastContext';
 import {
   AI_REACTION_OPTIONS,
   type ChatMessage,
@@ -92,13 +93,13 @@ export function ThreadView({
   const pointerStartRef = useRef<{ x: number; y: number } | null>(null);
   const suppressClickRef = useRef<boolean>(false);
 
+  const toast = useOptionalToast();
   const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
   const [speechError, setSpeechError] = useState<string | null>(null);
   const [activeMatchIndex, setActiveMatchIndex] = useState<number>(0);
 
   const [openMenuMessageId, setOpenMenuMessageId] = useState<string | null>(null);
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
-  const [actionNotice, setActionNotice] = useState<string | null>(null);
 
   const isSpeechSupported =
     typeof window !== 'undefined' &&
@@ -164,7 +165,6 @@ export function ThreadView({
     stopSpeech();
     setSpeechError(null);
     setOpenMenuMessageId(null);
-    setActionNotice(null);
   }, [conversation.id, stopSpeech]);
 
   useEffect(() => {
@@ -191,13 +191,12 @@ export function ThreadView({
   }, [openMenuMessageId]);
 
   useEffect(() => {
-    if (!copiedMessageId && !actionNotice) return;
+    if (!copiedMessageId) return;
     const timer = window.setTimeout(() => {
       setCopiedMessageId(null);
-      setActionNotice(null);
     }, 2200);
     return () => window.clearTimeout(timer);
-  }, [copiedMessageId, actionNotice]);
+  }, [copiedMessageId]);
 
   useEffect(() => {
     return () => {
@@ -271,9 +270,17 @@ export function ThreadView({
     setOpenMenuMessageId(null);
     if (copied) {
       setCopiedMessageId(message.id);
-      setActionNotice('Message copied to clipboard.');
+      toast?.showToast({
+        message: 'Message copied to clipboard.',
+        variant: 'success',
+        dedupeKey: 'copy-message',
+      });
     } else {
-      setActionNotice('Clipboard access unavailable in this browser context.');
+      toast?.showToast({
+        message: 'Clipboard access unavailable in this browser context.',
+        variant: 'warning',
+        dedupeKey: 'copy-message',
+      });
     }
   };
 
@@ -283,7 +290,11 @@ export function ThreadView({
     }
     setOpenMenuMessageId(null);
     onDeleteMessage(messageId);
-    setActionNotice('Message removed from thread.');
+    toast?.showToast({
+      message: 'Message removed from thread.',
+      variant: 'info',
+      dedupeKey: 'delete-message',
+    });
   };
 
   const handleRegenerateMessage = (messageId: string) => {
@@ -292,7 +303,11 @@ export function ThreadView({
     }
     setOpenMenuMessageId(null);
     onRegenerateMessage(messageId);
-    setActionNotice('Response refreshed.');
+    toast?.showToast({
+      message: 'Response refreshed.',
+      variant: 'info',
+      dedupeKey: 'regenerate-message',
+    });
   };
 
   const handleSaveMemory = (messageId: string) => {
@@ -300,9 +315,18 @@ export function ThreadView({
     if (!onSaveToMemory) return;
     const res = onSaveToMemory(messageId);
     if (res.ok) {
-      setActionNotice('Saved to EFER Memory.');
+      toast?.showToast({
+        title: 'Memory updated',
+        message: 'Saved to EFER Memory.',
+        variant: 'success',
+        dedupeKey: 'save-memory',
+      });
     } else if (res.error) {
-      setActionNotice(res.error);
+      toast?.showToast({
+        message: res.error,
+        variant: 'warning',
+        dedupeKey: 'save-memory',
+      });
     }
   };
 
@@ -533,29 +557,16 @@ export function ThreadView({
         </div>
       )}
 
-      {(speechError || actionNotice) && (
+      {speechError && (
         <div className="px-3.5 sm:px-screen pt-2 shrink-0">
-          <div className="max-w-3xl mx-auto space-y-2">
-            {speechError && (
-              <div
-                role="alert"
-                className="flex items-center gap-2 p-2.5 px-3 rounded-card bg-card border border-danger/40 text-xs text-danger"
-              >
-                <AlertCircle className="w-4 h-4 shrink-0" aria-hidden="true" />
-                <span>{speechError}</span>
-              </div>
-            )}
-
-            {actionNotice && (
-              <div
-                role="status"
-                aria-live="polite"
-                className="flex items-center gap-2 p-2.5 px-3 rounded-card bg-card-subtle border border-border text-xs text-text-primary"
-              >
-                <Check className="w-3.5 h-3.5 text-success shrink-0" aria-hidden="true" />
-                <span>{actionNotice}</span>
-              </div>
-            )}
+          <div className="max-w-3xl mx-auto">
+            <div
+              role="alert"
+              className="flex items-center gap-2 p-2.5 px-3 rounded-card bg-card border border-danger/40 text-xs text-danger"
+            >
+              <AlertCircle className="w-4 h-4 shrink-0" aria-hidden="true" />
+              <span>{speechError}</span>
+            </div>
           </div>
         </div>
       )}

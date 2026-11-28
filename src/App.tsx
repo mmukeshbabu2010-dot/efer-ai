@@ -1,13 +1,15 @@
-import { lazy, Suspense, useEffect, useState } from 'react';
-import { EyeOff, Info, WifiOff, X } from 'lucide-react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
+import { EyeOff, WifiOff } from 'lucide-react';
 import { Composer } from './components/chat/Composer';
 import { EmptyState } from './components/chat/EmptyState';
 import { FallbackConsentCard } from './components/chat/FallbackConsentCard';
 import { ThreadView } from './components/chat/ThreadView';
+import { ToastViewport } from './components/common/ToastViewport';
 import { Sidebar } from './components/layout/Sidebar';
 import { TopBar } from './components/layout/TopBar';
 import { useNetworkStatus } from './hooks/useNetworkStatus';
 import { useVisualViewport } from './hooks/useVisualViewport';
+import { ToastProvider, useToast } from './state/ToastContext';
 import { useWorkspaceStore } from './state/useWorkspaceStore';
 import { EFER_CAPABILITIES } from './brain/capabilities';
 import { downloadConversation, type ExportFormat } from './utils/exportConversation';
@@ -36,21 +38,45 @@ const PlannedView = lazy(() =>
   })),
 );
 
-export function App() {
+function AppShell() {
   const store = useWorkspaceStore();
+  const { showToast } = useToast();
   const isOnline = useNetworkStatus();
   const { isCompactHeight } = useVisualViewport();
   const [shortcutAnnouncement, setShortcutAnnouncement] = useState<string | null>(null);
   const [isThreadSearchOpen, setIsThreadSearchOpen] = useState<boolean>(false);
   const [threadSearchQuery, setThreadSearchQuery] = useState<string>('');
   const [composerForceSendTick, setComposerForceSendTick] = useState<number>(0);
+  const wasOnlineRef = useRef<boolean>(isOnline);
 
-  const { clearAndFocusComposer } = store;
+  const { clearAndFocusComposer, setWorkspaceNotice, workspaceNotice } = store;
 
   useEffect(() => {
     setIsThreadSearchOpen(false);
     setThreadSearchQuery('');
   }, [store.activeConversationId, store.activeView.kind, store.isIncognito]);
+
+  useEffect(() => {
+    if (!workspaceNotice) return;
+    showToast({
+      message: workspaceNotice,
+      variant: 'info',
+      dedupeKey: 'workspace-notice',
+    });
+    setWorkspaceNotice(null);
+  }, [workspaceNotice, setWorkspaceNotice, showToast]);
+
+  useEffect(() => {
+    if (!wasOnlineRef.current && isOnline) {
+      showToast({
+        title: 'Back online',
+        message: 'Network connection restored.',
+        variant: 'success',
+        dedupeKey: 'network-status',
+      });
+    }
+    wasOnlineRef.current = isOnline;
+  }, [isOnline, showToast]);
 
   const handleOpenMobileDrawer = () => {
     if (document.activeElement instanceof HTMLElement) {
@@ -68,6 +94,12 @@ export function App() {
         event.preventDefault();
         clearAndFocusComposer();
         setShortcutAnnouncement('Composer cleared and focused.');
+        showToast({
+          message: 'Composer cleared.',
+          variant: 'info',
+          durationMs: 2200,
+          dedupeKey: 'composer-cleared',
+        });
         return;
       }
 
@@ -80,7 +112,7 @@ export function App() {
 
     window.addEventListener('keydown', handleGlobalKeyDown);
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
-  }, [clearAndFocusComposer, store.activeView.kind]);
+  }, [clearAndFocusComposer, showToast, store.activeView.kind]);
 
   const activeModeLabel =
     EFER_CAPABILITIES.find((c) => c.id === store.activeCapabilityMode)?.label ??
@@ -135,7 +167,22 @@ export function App() {
     if (!store.activeConversation || store.isIncognito || store.activeConversation.isIncognito) {
       return;
     }
-    downloadConversation(store.activeConversation, format);
+    try {
+      downloadConversation(store.activeConversation, format);
+      showToast({
+        title: 'Conversation exported',
+        message: `Downloaded ${format === 'markdown' ? 'Markdown (.md)' : 'JSON (.json)'} file.`,
+        variant: 'success',
+        dedupeKey: 'export-conversation',
+      });
+    } catch {
+      showToast({
+        title: 'Export failed',
+        message: 'Unable to export the current conversation.',
+        variant: 'error',
+        dedupeKey: 'export-conversation',
+      });
+    }
   };
 
   return (
@@ -185,7 +232,16 @@ export function App() {
           onToggleIncognito={store.toggleIncognito}
           onToggleChatRemember={() => {
             if (store.activeConversation && !store.isIncognito) {
+              const nextRemember = store.activeConversation.rememberThisChat === false;
               store.toggleConversationRemember(store.activeConversation.id);
+              showToast({
+                title: 'Memory updated',
+                message: nextRemember
+                  ? 'EFER Memory enabled for this chat.'
+                  : 'EFER Memory paused for this chat.',
+                variant: 'info',
+                dedupeKey: 'chat-memory-toggle',
+              });
             }
           }}
           onNewThread={store.createNewThread}
@@ -219,27 +275,6 @@ export function App() {
               className="px-2.5 py-1 rounded-[8px] bg-card border border-border text-xs font-medium text-text-primary hover:border-accent shrink-0 focus-visible:outline-2 focus-visible:outline-accent"
             >
               Exit
-            </button>
-          </div>
-        )}
-
-        {!store.isIncognito && store.workspaceNotice && (
-          <div
-            role="status"
-            aria-live="polite"
-            className="flex items-center justify-between gap-2 px-3 sm:px-screen py-2 border-b border-border bg-card-subtle text-xs text-text-primary shrink-0"
-          >
-            <span className="flex items-center gap-2 min-w-0">
-              <Info className="w-3.5 h-3.5 text-accent shrink-0" aria-hidden="true" />
-              <span>{store.workspaceNotice}</span>
-            </span>
-            <button
-              type="button"
-              onClick={() => store.setWorkspaceNotice(null)}
-              aria-label="Dismiss notice"
-              className="p-1 rounded-card text-text-secondary hover:text-text-primary focus-visible:outline-2 focus-visible:outline-accent shrink-0"
-            >
-              <X className="w-3.5 h-3.5" aria-hidden="true" />
             </button>
           </div>
         )}
@@ -291,6 +326,12 @@ export function App() {
                 isCheckingOllama={store.isCheckingOllama}
                 serverProxyStatus={store.serverProxyStatus}
                 isCheckingProxy={store.isCheckingProxy}
+                byokProviders={store.byokProviders}
+                onAddByokProvider={store.addByokProvider}
+                onUpdateByokProvider={store.updateByokProvider}
+                onToggleByokProvider={store.toggleByokProvider}
+                onDeleteByokProvider={store.deleteByokProvider}
+                onTestByokConnection={store.testByokConnection}
                 onSetProviderEnabled={store.setProviderEnabled}
                 onUpdateOllamaConfig={store.updateOllamaConfig}
                 onTestOllamaConnection={store.testOllamaConnection}
@@ -420,6 +461,15 @@ export function App() {
         </main>
       </div>
     </div>
+  );
+}
+
+export function App() {
+  return (
+    <ToastProvider>
+      <AppShell />
+      <ToastViewport />
+    </ToastProvider>
   );
 }
 
