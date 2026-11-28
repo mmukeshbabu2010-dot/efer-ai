@@ -31,13 +31,19 @@ OPENROUTER_API_KEY=...
 
 Keys are read exclusively on the server and are never exposed to client code or browser storage. When an env key is absent, `/api/chat` returns an explicit `503` error rather than simulating live provider responses.
 
-## Scripts
+## Development
+
+**Package manager:** Bun **1.4.5**. The version is pinned in `package.json` and the GitHub Actions workflow. Use Bun for dependency installation and project scripts so local development and CI use the same toolchain.
+
+Install the pinned Bun version, then run:
 
 ```bash
-npm run dev         # Start Vite dev server on port 3000
-npm run typecheck   # Run TypeScript type checking
-npm run lint        # Run ESLint
-npm test            # Run Vitest unit & component tests
-npm run build       # Build production bundle into dist/
-npm start           # Serve dist/ and /api/* routes via server.js
+bun install --frozen-lockfile
+bun run dev       # Start the Vite development server on port 3000
+bun run lint      # TypeScript typecheck + Node server syntax check
+bun run test      # Run Vitest unit and component tests
+bun run build     # Build the production bundle into dist/
+bun run start     # Serve dist/ and /api/* routes via server.js
 ```
+
+Use `bun install --frozen-lockfile` in CI to verify that `bun.lock` matches `package.json` without modifying the lockfile.
