@@ -91,14 +91,14 @@ describe('production static & SPA server', () => {
       const rawText = await res.text();
       expect(rawText).not.toContain('AIza-secret-should-never-appear-in-response');
       const parsed = JSON.parse(rawText) as {
-        configured: { gemini: boolean; groq: boolean; openrouter: boolean };
+        configured: { groq: boolean; openrouter: boolean };
         note: string;
       };
       expect(parsed.configured).toEqual({
-        gemini: true,
         groq: false,
         openrouter: false,
       });
+      expect(rawText).not.toContain('gemini');
       expect(parsed.note).toContain('server-side');
     } finally {
       if (prevGemini === undefined) delete process.env.GEMINI_API_KEY;
@@ -110,9 +110,9 @@ describe('production static & SPA server', () => {
     }
   });
 
-  it('validates POST /api/chat requests, returns 503 when env key is missing, and streams upstream Gemini SSE chunks', async () => {
-    const prevGemini = process.env.GEMINI_API_KEY;
-    delete process.env.GEMINI_API_KEY;
+  it('validates POST /api/chat requests and keeps the deferred Gemini integration unavailable', async () => {
+    const previousKey = process.env.GEMINI_API_KEY;
+    process.env.GEMINI_API_KEY = 'test-key-must-not-be-used';
 
     try {
       const badBodyRes = await fetch(`${baseUrl}/api/chat`, {
@@ -122,7 +122,7 @@ describe('production static & SPA server', () => {
       });
       expect(badBodyRes.status).toBe(400);
 
-      const unconfiguredRes = await fetch(`${baseUrl}/api/chat`, {
+      const deferredRes = await fetch(`${baseUrl}/api/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -130,68 +130,13 @@ describe('production static & SPA server', () => {
           messages: [{ role: 'user', content: 'Hello proxy' }],
         }),
       });
-      expect(unconfiguredRes.status).toBe(503);
-      const errBody = (await unconfiguredRes.json()) as { error: string };
-      expect(errBody.error).toContain('GEMINI_API_KEY');
+      expect(deferredRes.status).toBe(503);
+      const errorBody = (await deferredRes.json()) as { error: string };
+      expect(errorBody.error).toContain('deferred');
     } finally {
-      if (prevGemini === undefined) delete process.env.GEMINI_API_KEY;
-      else process.env.GEMINI_API_KEY = prevGemini;
-    }
-
-    // Mocked upstream SSE server test
-    const fakeGeminiSse = [
-      'data: {"candidates":[{"content":{"parts":[{"text":"Hello "}]}}]}\n\n',
-      'data: {"candidates":[{"content":{"parts":[{"text":"from Gemini!"}]}}]}\n\n',
-    ].join('');
-
-    const mockFetch = async () =>
-      new Response(
-        new ReadableStream({
-          start(controller) {
-            controller.enqueue(new TextEncoder().encode(fakeGeminiSse));
-            controller.close();
-          },
-        }),
-        {
-          status: 200,
-          headers: { 'Content-Type': 'text/event-stream; charset=utf-8' },
-        },
-      );
-
-    const prevKey = process.env.GEMINI_API_KEY;
-    process.env.GEMINI_API_KEY = 'AIza-mock-server-key-not-leaked';
-    const proxyServer = createProductionServer(distDir, {
-      fetchImpl: mockFetch as typeof fetch,
-    });
-    await new Promise<void>((resolve) => {
-      proxyServer.listen(0, '127.0.0.1', () => resolve());
-    });
-    const proxyAddr = proxyServer.address() as AddressInfo;
-
-    try {
-      const streamRes = await fetch(`http://127.0.0.1:${proxyAddr.port}/api/chat`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          modelId: 'proxy:gemini-flash',
-          messages: [
-            { role: 'system', content: 'Be helpful.' },
-            { role: 'user', content: 'Say hi' },
-          ],
-        }),
-      });
-
-      expect(streamRes.status).toBe(200);
-      expect(streamRes.headers.get('content-type')).toContain('text/event-stream');
-      const sseText = await streamRes.text();
-      expect(sseText).toContain('"text":"Hello "');
-      expect(sseText).toContain('"text":"from Gemini!"');
-      expect(sseText).toContain('data: [DONE]');
-      expect(sseText).not.toContain('AIza-mock-server-key-not-leaked');
-    } finally {
-      await new Promise<void>((resolve) => proxyServer.close(() => resolve()));
-      if (prevKey === undefined) delete process.env.GEMINI_API_KEY;
-      else process.env.GEMINI_API_KEY = prevKey;
+      if (previousKey === undefined) delete process.env.GEMINI_API_KEY;
+      else process.env.GEMINI_API_KEY = previousKey;
     }
   });
+
 });

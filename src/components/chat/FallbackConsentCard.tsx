@@ -11,6 +11,11 @@ export function FallbackConsentCard({
   consent,
   onDecision,
 }: FallbackConsentCardProps) {
+  const canRememberPermission =
+    !consent.isIncognito &&
+    consent.fromProviderId === consent.toProviderId &&
+    consent.fromPrivacyTier === consent.toPrivacyTier;
+
   return (
     <div
       role="alertdialog"
@@ -36,6 +41,22 @@ export function FallbackConsentCard({
             <span className="font-medium text-text-primary">{consent.toModelName}</span> with your
             permission.
           </p>
+          <div className="pt-1 space-y-1 text-[11px] text-text-secondary">
+            <p>
+              Provider: <span className="font-mono text-text-primary">{consent.fromProviderId}</span>
+              {' '}→{' '}
+              <span className="font-mono text-text-primary">{consent.toProviderId}</span>
+            </p>
+            <p>
+              Privacy boundary: <span className="font-mono text-text-primary">{consent.fromPrivacyTier}</span>
+              {' '}→{' '}
+              <span className="font-mono text-text-primary">{consent.toPrivacyTier}</span>
+              {consent.isIncognito ? ' · Incognito session' : ''}
+            </p>
+            {consent.fromProviderId !== consent.toProviderId && (
+              <p className="text-warning">Conversation context will be sent to a different provider if you allow this switch.</p>
+            )}
+          </div>
         </div>
       </div>
 
@@ -54,13 +75,15 @@ export function FallbackConsentCard({
         >
           Allow Once
         </button>
-        <button
-          type="button"
-          onClick={() => onDecision('always-allow')}
-          className="h-9 sm:h-8 px-3 rounded-[10px] bg-accent hover:bg-accent-hover text-accent-text text-xs font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+        {canRememberPermission && (
+          <button
+            type="button"
+            onClick={() => onDecision('always-allow')}
+            className="h-9 sm:h-8 px-3 rounded-[10px] bg-accent hover:bg-accent-hover text-accent-text text-xs font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
         >
-          Always Allow
-        </button>
+            Always Allow
+          </button>
+        )}
       </div>
     </div>
   );
