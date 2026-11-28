@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertCircle,
+  BookmarkCheck,
   Check,
   ChevronDown,
   ChevronUp,
   Copy,
+  FileText,
+  Image as ImageIcon,
   Info,
   Loader2,
   MoreVertical,
@@ -36,6 +39,7 @@ interface ThreadViewProps {
   onToggleReaction: (messageId: string, emoji: MessageReaction) => void;
   onDeleteMessage: (messageId: string) => void;
   onRegenerateMessage: (messageId: string) => void;
+  onSaveToMemory?: (messageId: string) => { ok: boolean; error?: string };
 }
 
 const LONG_PRESS_DURATION_MS = 500;
@@ -78,6 +82,7 @@ export function ThreadView({
   onToggleReaction,
   onDeleteMessage,
   onRegenerateMessage,
+  onSaveToMemory,
 }: ThreadViewProps) {
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
@@ -290,6 +295,17 @@ export function ThreadView({
     setActionNotice('Response refreshed.');
   };
 
+  const handleSaveMemory = (messageId: string) => {
+    setOpenMenuMessageId(null);
+    if (!onSaveToMemory) return;
+    const res = onSaveToMemory(messageId);
+    if (res.ok) {
+      setActionNotice('Saved to EFER Memory.');
+    } else if (res.error) {
+      setActionNotice(res.error);
+    }
+  };
+
   const createLongPressHandlers = (messageId: string) => ({
     onPointerDown: (event: React.PointerEvent<HTMLElement>) => {
       if (event.button !== 0 && event.pointerType === 'mouse') return;
@@ -411,6 +427,24 @@ export function ThreadView({
               >
                 <RotateCcw className="w-3.5 h-3.5 text-accent shrink-0" aria-hidden="true" />
                 <span>Regenerate response</span>
+              </button>
+            )}
+
+            {onSaveToMemory && (
+              <button
+                type="button"
+                role="menuitem"
+                disabled={conversation.isIncognito || !message.content.trim()}
+                title={
+                  conversation.isIncognito
+                    ? 'Memory saving is blocked in Incognito sessions'
+                    : 'Save this message to EFER Memory'
+                }
+                onClick={() => handleSaveMemory(message.id)}
+                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-[10px] text-xs font-medium text-text-primary hover:bg-card-subtle disabled:opacity-50 disabled:cursor-not-allowed text-left transition-colors focus-visible:outline-2 focus-visible:outline-accent"
+              >
+                <BookmarkCheck className="w-3.5 h-3.5 text-accent shrink-0" aria-hidden="true" />
+                <span>Save to Memory</span>
               </button>
             )}
 
@@ -554,15 +588,37 @@ export function ThreadView({
                 >
                   <div
                     {...longPressHandlers}
-                    className={`max-w-[88%] sm:max-w-[75%] px-3.5 sm:px-4 py-2.5 sm:py-3 rounded-card bg-user-surface text-user-text text-[15px] leading-relaxed whitespace-pre-wrap break-words select-text ${
+                    className={`max-w-[88%] sm:max-w-[75%] px-3.5 sm:px-4 py-2.5 sm:py-3 rounded-card bg-user-surface text-user-text text-[15px] leading-relaxed whitespace-pre-wrap break-words select-text space-y-2 ${
                       isActiveMatch ? 'ring-2 ring-accent ring-offset-2 ring-offset-bg' : ''
                     }`}
                   >
-                    {highlightTextNodes(
-                      message.content,
-                      activeHighlightQuery,
-                      message.id,
-                      'inverted',
+                    <div>
+                      {highlightTextNodes(
+                        message.content,
+                        activeHighlightQuery,
+                        message.id,
+                        'inverted',
+                      )}
+                    </div>
+                    {message.attachments && message.attachments.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 pt-1">
+                        {message.attachments.map((att, attIndex) => (
+                          <span
+                            key={`${message.id}-att-${attIndex}`}
+                            className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[8px] bg-bg/15 text-[11px] font-mono"
+                          >
+                            {att.kind === 'image' ? (
+                              <ImageIcon className="w-3 h-3 shrink-0" aria-hidden="true" />
+                            ) : (
+                              <FileText className="w-3 h-3 shrink-0" aria-hidden="true" />
+                            )}
+                            <span className="truncate max-w-[160px]">{att.name}</span>
+                            <span className="opacity-75">
+                              {Math.max(1, Math.round(att.sizeBytes / 1024))} KB
+                            </span>
+                          </span>
+                        ))}
+                      </div>
                     )}
                   </div>
                   <div className="flex items-center gap-2 px-1">
@@ -744,7 +800,7 @@ export function ThreadView({
           })}
 
           <p className="pt-2 text-[13px] text-text-secondary">
-            EFER AI Phase 2 Demo — local mock responses routed through EFER Brain (no external API keys connected).
+            EFER AI — routed via EFER Brain (Demo, Local Ollama, or Server Proxy)
           </p>
 
           <div ref={bottomRef} />

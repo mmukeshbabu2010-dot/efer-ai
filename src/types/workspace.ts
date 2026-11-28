@@ -46,10 +46,28 @@ export type MessageReaction = (typeof AI_REACTION_OPTIONS)[number];
 
 export type MessageStatus = 'streaming' | 'complete' | 'error' | 'aborted';
 
+export interface DraftAttachment {
+  id: string;
+  kind: 'file' | 'image';
+  name: string;
+  mimeType: string;
+  sizeBytes: number;
+  textContent?: string;
+  previewUrl?: string;
+}
+
+export interface MessageAttachmentSummary {
+  name: string;
+  kind: 'file' | 'image';
+  sizeBytes: number;
+}
+
 export interface ChatMessage {
   id: string;
   role: MessageRole;
   content: string;
+  brainContent?: string;
+  attachments?: MessageAttachmentSummary[];
   timestamp: string;
   reactions?: MessageReaction[];
   isPreviewSample?: boolean;
@@ -73,6 +91,7 @@ export interface Conversation {
   updatedAt: string;
   isSamplePreview?: boolean;
   isIncognito?: boolean;
+  rememberThisChat?: boolean;
 }
 
 export interface SendMessageResult {
@@ -114,5 +133,6 @@ export type ActiveWorkspaceView =
   | { kind: 'chat' }
   | { kind: 'activity' }
   | { kind: 'settings' }
+  | { kind: 'memory' }
   | { kind: 'planned-capability'; capabilityId: CapabilityId }
   | { kind: 'planned-section'; sectionId: PlannedSectionId };

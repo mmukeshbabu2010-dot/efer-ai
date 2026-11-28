@@ -16,6 +16,7 @@ import type {
   BrainStreamEvent,
   BrainTraceStage,
   FallbackMode,
+  MemoryItem,
   ModelCapabilities,
   ModelDescriptor,
 } from './types';
@@ -32,6 +33,9 @@ export interface BrainTurnInput {
   messages: ChatMessage[];
   isIncognito: boolean;
   requiredCapability?: keyof ModelCapabilities;
+  capabilityMode?: string;
+  memories?: MemoryItem[];
+  rememberThisChat?: boolean;
   signal?: AbortSignal;
   onFallbackConsent?: FallbackConsentPrompt;
 }
@@ -236,19 +240,35 @@ export class EferBrain {
         providerId: adapter.id,
       };
 
+      const appliedMemories =
+        !input.isIncognito &&
+        input.rememberThisChat !== false &&
+        Array.isArray(input.memories)
+          ? input.memories
+          : [];
+
       const contextMessages = buildContextWindow(input.messages, {
         contextWindowTokens: currentModel.contextWindowTokens,
         isIncognito: input.isIncognito,
+        memories: appliedMemories,
+        rememberThisChat: input.rememberThisChat,
+        capabilityMode: input.capabilityMode,
       });
       const approxTokens = contextMessages.reduce(
         (sum, msg) => sum + estimateTokenCount(msg.content),
         0,
       );
 
+      const memoryTraceLabel = input.isIncognito
+        ? 'excluded (Incognito)'
+        : input.rememberThisChat === false
+          ? 'excluded (chat toggle off)'
+          : `${appliedMemories.length} applied`;
+
       yield makeTraceEvent(
         input.requestId,
         'context',
-        `Built context window (${contextMessages.length} message(s), ~${approxTokens} tokens, privacy=${input.isIncognito ? 'incognito-ram' : 'workspace'}).`,
+        `Built context window (${contextMessages.length} message(s), ~${approxTokens} tokens, memories=${memoryTraceLabel}, privacy=${input.isIncognito ? 'incognito-ram' : 'workspace'}).`,
       );
 
       let fullText = '';

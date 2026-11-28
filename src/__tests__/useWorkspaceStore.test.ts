@@ -1,8 +1,11 @@
 import { act, renderHook } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { useWorkspaceStore } from '../state/useWorkspaceStore';
 
 describe('useWorkspaceStore', () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
   it('creates and deletes normal conversations safely, restoring a fresh thread if empty', () => {
     const { result } = renderHook(() => useWorkspaceStore());
     const initialCount = result.current.conversations.length;
@@ -228,5 +231,59 @@ describe('useWorkspaceStore', () => {
       result.current.setProviderEnabled('local-ollama', false);
     });
     expect(result.current.selectedModelId).toBe('efer-demo-primary');
+  });
+
+  it('manages EFER Memory CRUD, blocks saving in Incognito, and toggles active capability modes', async () => {
+    const { result } = renderHook(() => useWorkspaceStore());
+
+    let addRes!: { ok: boolean; error?: string };
+    act(() => {
+      addRes = result.current.addMemory('Use strict TypeScript', 'preference');
+    });
+    expect(addRes.ok).toBe(true);
+    expect(result.current.memories).toHaveLength(1);
+    const memId = result.current.memories[0].id;
+
+    act(() => {
+      result.current.updateMemory(memId, 'Use strict TypeScript and Vitest', 'style');
+    });
+    expect(result.current.memories[0].content).toBe('Use strict TypeScript and Vitest');
+    expect(result.current.memories[0].category).toBe('style');
+
+    // Toggle per-conversation memory privacy
+    const threadId = result.current.activeConversationId;
+    expect(result.current.activeConversation?.rememberThisChat).toBeUndefined();
+    act(() => {
+      result.current.toggleConversationRemember(threadId);
+    });
+    expect(result.current.activeConversation?.rememberThisChat).toBe(false);
+
+    // Incognito must block saving messages to memory
+    act(() => {
+      result.current.enterIncognito();
+    });
+    await act(async () => {
+      await result.current.sendMessage('Incognito message not for memory');
+    });
+    const incMsgId = result.current.activeConversation?.messages[0]?.id ?? '';
+    let saveIncRes!: { ok: boolean; error?: string };
+    act(() => {
+      saveIncRes = result.current.saveMessageToMemory(incMsgId);
+    });
+    expect(saveIncRes.ok).toBe(false);
+    expect(saveIncRes.error).toMatch(/Incognito/i);
+    expect(result.current.memories).toHaveLength(1);
+
+    act(() => {
+      result.current.exitIncognito();
+      result.current.selectCapability('code');
+    });
+    expect(result.current.activeCapabilityMode).toBe('code');
+    expect(result.current.activeView).toEqual({ kind: 'chat' });
+
+    act(() => {
+      result.current.deleteMemory(memId);
+    });
+    expect(result.current.memories).toHaveLength(0);
   });
 });

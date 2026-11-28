@@ -1,10 +1,13 @@
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { App } from '../App';
 import { scanForSecrets } from '../components/chat/Composer';
 
 describe('EFER AI App integration', () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
   it('disables Send for empty drafts and submits valid text once', async () => {
     const user = userEvent.setup();
     render(<App />);
@@ -227,5 +230,60 @@ describe('EFER AI App integration', () => {
     await user.click(screen.getByRole('button', { name: 'Use in Chat' }));
     const modelBtn = screen.getByRole('button', { name: 'Select model and fallback mode' });
     expect(modelBtn).toHaveTextContent('Ollama · mistral');
+  });
+
+  it('opens Memory Controls, adds/searches/deletes saved memories, and enforces per-chat privacy switch', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(screen.getByRole('button', { name: /Memory Controls/i }));
+
+    expect(
+      await screen.findByRole('heading', { level: 2, name: 'Memory Controls' }),
+    ).toBeInTheDocument();
+
+    const memoryInput = screen.getByLabelText('Add a saved preference or fact');
+    await user.type(memoryInput, 'Always format outputs with clear checklists.');
+    await user.click(screen.getByRole('button', { name: 'Save Memory' }));
+
+    expect(
+      await screen.findByText('Always format outputs with clear checklists.'),
+    ).toBeInTheDocument();
+
+    const rememberSwitch = screen.getByRole('switch', { name: 'Remember this chat' });
+    expect(rememberSwitch).toHaveAttribute('aria-checked', 'true');
+    await user.click(rememberSwitch);
+    expect(rememberSwitch).toHaveAttribute('aria-checked', 'false');
+
+    const searchInput = screen.getByLabelText('Search saved memories');
+    await user.type(searchInput, 'unmatched-term');
+    expect(screen.getByText(/No memories match your search filter/i)).toBeInTheDocument();
+
+    await user.clear(searchInput);
+    await user.click(screen.getByRole('button', { name: 'Delete memory' }));
+    expect(screen.getByText(/No saved memories yet/i)).toBeInTheDocument();
+  });
+
+  it('attaches a local text file in Composer and sends it into the thread', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    const fileInput = screen.getByLabelText('Attach text document') as HTMLInputElement;
+    const sampleFile = new File(['Hello from local README snippet'], 'notes.txt', {
+      type: 'text/plain',
+    });
+    await user.upload(fileInput, sampleFile);
+
+    expect(await screen.findByText('notes.txt')).toBeInTheDocument();
+
+    const sendBtn = screen.getByRole('button', { name: 'Send message' });
+    expect(sendBtn).toBeEnabled();
+    await user.click(sendBtn);
+
+    await waitFor(() => {
+      const main = screen.getByRole('main');
+      expect(within(main).getByText(/Please review the attached file\(s\): notes\.txt/i)).toBeInTheDocument();
+      expect(within(main).getByText('notes.txt')).toBeInTheDocument();
+    });
   });
 });

@@ -14,6 +14,10 @@ import {
 } from '../brain/capabilities';
 import { createDefaultEferBrain, type EferBrain } from '../brain/eferBrain';
 import {
+  loadMemoriesFromStorage,
+  saveMemoriesToStorage,
+} from '../brain/memoryStore';
+import {
   DEFAULT_DEMO_PRIMARY_MODEL_ID,
   DEFAULT_OLLAMA_MODEL_ID,
 } from '../brain/modelRegistry';
@@ -22,6 +26,8 @@ import type {
   FallbackConsentRequest,
   FallbackDecision,
   FallbackMode,
+  MemoryCategory,
+  MemoryItem,
   ProviderHealthStatus,
 } from '../brain/types';
 import type {
@@ -30,6 +36,7 @@ import type {
   CapabilityId,
   ChatMessage,
   Conversation,
+  DraftAttachment,
   MessageReaction,
   PendingFallbackConsent,
   PlannedSectionId,
@@ -90,6 +97,8 @@ export function useWorkspaceStore(options: WorkspaceStoreOptions = {}) {
   const [activeConversationId, setActiveConversationId] = useState<string>('thread-new-1');
   const [incognitoConversation, setIncognitoConversation] = useState<Conversation | null>(null);
   const [activeView, setActiveView] = useState<ActiveWorkspaceView>({ kind: 'chat' });
+  const [activeCapabilityMode, setActiveCapabilityMode] =
+    useState<CapabilityId>('general-chat');
 
   const [isDesktopSidebarOpen, setIsDesktopSidebarOpen] = useState<boolean>(true);
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState<boolean>(false);
@@ -101,6 +110,9 @@ export function useWorkspaceStore(options: WorkspaceStoreOptions = {}) {
   const [selectedStarterId, setSelectedStarterId] = useState<string | null>(null);
   const [composerFocusTick, setComposerFocusTick] = useState<number>(0);
 
+  const [draftAttachments, setDraftAttachments] = useState<DraftAttachment[]>([]);
+  const [attachmentError, setAttachmentError] = useState<string | null>(null);
+
   const [selectedModelId, setSelectedModelId] = useState<string>(
     () => brain.models.getDefaultModel()?.id ?? DEFAULT_DEMO_PRIMARY_MODEL_ID,
   );
@@ -110,6 +122,7 @@ export function useWorkspaceStore(options: WorkspaceStoreOptions = {}) {
   );
   const [pendingFallback, setPendingFallback] = useState<PendingFallbackConsent | null>(null);
   const [activityLogs, setActivityLogs] = useState<ActivityLogEntry[]>([]);
+  const [memories, setMemories] = useState<MemoryItem[]>(() => loadMemoriesFromStorage());
 
   const [ollamaBaseUrl, setOllamaBaseUrl] = useState<string>(() => {
     const adapter = brain.adapters.get('local-ollama');
@@ -129,11 +142,14 @@ export function useWorkspaceStore(options: WorkspaceStoreOptions = {}) {
 
   const submissionLockRef = useRef<boolean>(false);
   const composerTextRef = useRef<string>(composerText);
+  const draftAttachmentsRef = useRef<DraftAttachment[]>(draftAttachments);
   const conversationsRef = useRef<Conversation[]>(conversations);
   const incognitoRef = useRef<Conversation | null>(incognitoConversation);
   const activeConversationIdRef = useRef<string>(activeConversationId);
   const selectedModelIdRef = useRef<string>(selectedModelId);
   const isIncognitoRef = useRef<boolean>(isIncognito);
+  const memoriesRef = useRef<MemoryItem[]>(memories);
+  const activeCapabilityModeRef = useRef<CapabilityId>(activeCapabilityMode);
   const isMountedRef = useRef<boolean>(true);
   const idSequenceRef = useRef<number>(0);
   const activeAbortControllerRef = useRef<AbortController | null>(null);
@@ -148,8 +164,26 @@ export function useWorkspaceStore(options: WorkspaceStoreOptions = {}) {
       activeAbortControllerRef.current?.abort();
       activeAbortControllerRef.current = null;
       pendingFallbackResolverRef.current = null;
+      for (const att of draftAttachmentsRef.current) {
+        if (att.previewUrl && typeof URL !== 'undefined' && URL.revokeObjectURL) {
+          URL.revokeObjectURL(att.previewUrl);
+        }
+      }
     };
   }, []);
+
+  useEffect(() => {
+    draftAttachmentsRef.current = draftAttachments;
+  }, [draftAttachments]);
+
+  useEffect(() => {
+    memoriesRef.current = memories;
+    saveMemoriesToStorage(memories);
+  }, [memories]);
+
+  useEffect(() => {
+    activeCapabilityModeRef.current = activeCapabilityMode;
+  }, [activeCapabilityMode]);
 
   useEffect(() => {
     composerTextRef.current = composerText;
@@ -384,8 +418,104 @@ export function useWorkspaceStore(options: WorkspaceStoreOptions = {}) {
     setTheme((prev) => (prev === 'light' ? 'dark' : 'light'));
   }, []);
 
+  const clearDraftAttachments = useCallback(() => {
+    for (const att of draftAttachmentsRef.current) {
+      if (att.previewUrl && typeof URL !== 'undefined' && URL.revokeObjectURL) {
+        URL.revokeObjectURL(att.previewUrl);
+      }
+    }
+    draftAttachmentsRef.current = [];
+    setDraftAttachments([]);
+    setAttachmentError(null);
+  }, []);
+
+  const removeDraftAttachment = useCallback((attachmentId: string) => {
+    setDraftAttachments((prev) => {
+      const removed = prev.find((item) => item.id === attachmentId);
+      if (removed?.previewUrl && typeof URL !== 'undefined' && URL.revokeObjectURL) {
+        URL.revokeObjectURL(removed.previewUrl);
+      }
+      const next = prev.filter((item) => item.id !== attachmentId);
+      draftAttachmentsRef.current = next;
+      return next;
+    });
+    setAttachmentError(null);
+  }, []);
+
+  const addFileAttachments = useCallback(async (files: FileList | File[]) => {
+    const fileArray = Array.from(files);
+    if (fileArray.length === 0) return;
+
+    setAttachmentError(null);
+    const existingCount = draftAttachmentsRef.current.length;
+    if (existingCount >= 3) {
+      setAttachmentError('Up to 3 attachments can be included per prompt.');
+      return;
+    }
+
+    const slotsRemaining = 3 - existingCount;
+    const accepted: DraftAttachment[] = [];
+
+    for (const file of fileArray.slice(0, slotsRemaining)) {
+      const lowerName = file.name.toLowerCase();
+      const isImage =
+        file.type.startsWith('image/') ||
+        /\.(png|jpe?g|webp|gif)$/i.test(lowerName);
+
+      if (isImage) {
+        if (file.size > 2 * 1024 * 1024) {
+          setAttachmentError(`${file.name} exceeds the 2 MB local image preview limit.`);
+          continue;
+        }
+        const previewUrl =
+          typeof URL !== 'undefined' && URL.createObjectURL
+            ? URL.createObjectURL(file)
+            : undefined;
+        idSequenceRef.current += 1;
+        accepted.push({
+          id: `att-${Date.now()}-${idSequenceRef.current}`,
+          kind: 'image',
+          name: file.name,
+          mimeType: file.type || 'image/png',
+          sizeBytes: file.size,
+          previewUrl,
+        });
+        continue;
+      }
+
+      if (file.size > 100 * 1024) {
+        setAttachmentError(`${file.name} exceeds the 100 KB local text document limit.`);
+        continue;
+      }
+
+      try {
+        const textContent = await file.text();
+        idSequenceRef.current += 1;
+        accepted.push({
+          id: `att-${Date.now()}-${idSequenceRef.current}`,
+          kind: 'file',
+          name: file.name,
+          mimeType: file.type || 'text/plain',
+          sizeBytes: file.size,
+          textContent,
+        });
+      } catch {
+        setAttachmentError(`Could not read ${file.name} as UTF-8 text.`);
+      }
+    }
+
+    if (accepted.length > 0 && isMountedRef.current) {
+      setDraftAttachments((prev) => {
+        const next = [...prev, ...accepted].slice(0, 3);
+        draftAttachmentsRef.current = next;
+        return next;
+      });
+    }
+  }, []);
+
   const enterIncognito = useCallback(() => {
     stopGeneration();
+    clearDraftAttachments();
     const freshIncognito = createIncognitoSession();
     incognitoRef.current = freshIncognito;
     setIncognitoConversation(freshIncognito);
@@ -396,10 +526,11 @@ export function useWorkspaceStore(options: WorkspaceStoreOptions = {}) {
     setWorkspaceNotice(null);
     setActiveView({ kind: 'chat' });
     setIsMobileDrawerOpen(false);
-  }, [stopGeneration]);
+  }, [clearDraftAttachments, stopGeneration]);
 
   const exitIncognito = useCallback(() => {
     stopGeneration();
+    clearDraftAttachments();
     incognitoRef.current = null;
     setIncognitoConversation(null);
     composerTextRef.current = '';
@@ -411,7 +542,7 @@ export function useWorkspaceStore(options: WorkspaceStoreOptions = {}) {
     );
     setActiveView({ kind: 'chat' });
     setIsMobileDrawerOpen(false);
-  }, [stopGeneration]);
+  }, [clearDraftAttachments, stopGeneration]);
 
   const toggleIncognito = useCallback(() => {
     if (isIncognitoRef.current) {
@@ -509,7 +640,16 @@ export function useWorkspaceStore(options: WorkspaceStoreOptions = {}) {
   );
 
   const selectCapability = useCallback((capabilityId: CapabilityId) => {
-    if (capabilityId === 'general-chat') {
+    if (capabilityId === 'memory') {
+      setActiveView({ kind: 'memory' });
+    } else if (
+      capabilityId === 'general-chat' ||
+      capabilityId === 'code' ||
+      capabilityId === 'documents' ||
+      capabilityId === 'voice'
+    ) {
+      activeCapabilityModeRef.current = capabilityId;
+      setActiveCapabilityMode(capabilityId);
       setActiveView({ kind: 'chat' });
     } else {
       setActiveView({ kind: 'planned-capability', capabilityId });
@@ -522,6 +662,8 @@ export function useWorkspaceStore(options: WorkspaceStoreOptions = {}) {
       setActiveView({ kind: 'activity' });
     } else if (sectionId === 'settings') {
       setActiveView({ kind: 'settings' });
+    } else if (sectionId === 'memory') {
+      setActiveView({ kind: 'memory' });
     } else {
       setActiveView({ kind: 'planned-section', sectionId });
     }
@@ -531,6 +673,92 @@ export function useWorkspaceStore(options: WorkspaceStoreOptions = {}) {
   const clearActivityLogs = useCallback(() => {
     setActivityLogs([]);
   }, []);
+
+  const addMemory = useCallback(
+    (
+      rawContent: string,
+      category: MemoryCategory = 'fact',
+      sourceConversationId?: string,
+    ): { ok: boolean; error?: string } => {
+      const cleaned = rawContent.trim();
+      if (!cleaned) {
+        return { ok: false, error: 'Memory note cannot be empty.' };
+      }
+      idSequenceRef.current += 1;
+      const now = formatCurrentTime();
+      const item: MemoryItem = {
+        id: `mem-${Date.now()}-${idSequenceRef.current}`,
+        category,
+        content: cleaned.slice(0, 600),
+        createdAt: now,
+        updatedAt: now,
+        sourceConversationId,
+      };
+      setMemories((prev) => [item, ...prev]);
+      return { ok: true };
+    },
+    [],
+  );
+
+  const updateMemory = useCallback(
+    (id: string, rawContent: string, category: MemoryCategory): { ok: boolean; error?: string } => {
+      const cleaned = rawContent.trim();
+      if (!cleaned) {
+        return { ok: false, error: 'Memory note cannot be empty.' };
+      }
+      const now = formatCurrentTime();
+      setMemories((prev) =>
+        prev.map((item) =>
+          item.id === id
+            ? { ...item, content: cleaned.slice(0, 600), category, updatedAt: now }
+            : item,
+        ),
+      );
+      return { ok: true };
+    },
+    [],
+  );
+
+  const deleteMemory = useCallback((id: string) => {
+    setMemories((prev) => prev.filter((item) => item.id !== id));
+  }, []);
+
+  const clearMemories = useCallback(() => {
+    setMemories([]);
+  }, []);
+
+  const toggleConversationRemember = useCallback((threadId: string) => {
+    setConversations((prev) =>
+      prev.map((thread) =>
+        thread.id === threadId
+          ? {
+              ...thread,
+              rememberThisChat: thread.rememberThisChat === false ? true : false,
+            }
+          : thread,
+      ),
+    );
+  }, []);
+
+  const saveMessageToMemory = useCallback(
+    (messageId: string): { ok: boolean; error?: string } => {
+      if (isIncognitoRef.current) {
+        return {
+          ok: false,
+          error: 'Incognito messages cannot be saved to EFER Memory.',
+        };
+      }
+      const conv = conversationsRef.current.find(
+        (c) => c.id === activeConversationIdRef.current,
+      );
+      const msg = conv?.messages.find((m) => m.id === messageId);
+      if (!msg || !msg.content.trim()) {
+        return { ok: false, error: 'Message could not be found.' };
+      }
+      return addMemory(msg.content.trim().slice(0, 400), 'fact', conv?.id);
+    },
+    [addMemory],
+  );
 
   const populateStarterPrompt = useCallback((starterId: string, prompt: string) => {
     setSelectedStarterId(starterId);
@@ -570,6 +798,8 @@ export function useWorkspaceStore(options: WorkspaceStoreOptions = {}) {
       targetConversationId: string;
       assistantMessageId: string;
       contextMessages: ChatMessage[];
+      rememberThisChat: boolean;
+      capabilityMode: CapabilityId;
     }): Promise<SendMessageResult> => {
       const {
         requestId,
@@ -578,6 +808,8 @@ export function useWorkspaceStore(options: WorkspaceStoreOptions = {}) {
         targetConversationId,
         assistantMessageId,
         contextMessages,
+        rememberThisChat,
+        capabilityMode,
       } = params;
 
       const controller = new AbortController();
@@ -674,6 +906,10 @@ export function useWorkspaceStore(options: WorkspaceStoreOptions = {}) {
           modelId: selectedModelIdRef.current,
           messages: contextMessages,
           isIncognito: inIncognito,
+          requiredCapability: capabilityMode === 'code' ? 'code' : undefined,
+          capabilityMode,
+          memories: inIncognito ? [] : memoriesRef.current,
+          rememberThisChat: inIncognito ? false : rememberThisChat,
           signal: controller.signal,
           onFallbackConsent: requestConsentFromUi,
         })) {
@@ -803,19 +1039,36 @@ export function useWorkspaceStore(options: WorkspaceStoreOptions = {}) {
       }
 
       const sourceText = rawContent !== undefined ? rawContent : composerTextRef.current;
-      const content = sourceText.trim();
+      const trimmedText = sourceText.trim();
+      const pendingAttachments = rawContent !== undefined ? [] : draftAttachmentsRef.current;
 
-      if (!content) {
+      if (!trimmedText && pendingAttachments.length === 0) {
         setComposerError('Please enter a message before sending.');
         return { ok: false, reason: 'empty' };
       }
 
+      const content =
+        trimmedText ||
+        `Please review the attached file(s): ${pendingAttachments.map((a) => a.name).join(', ')}`;
+
       if (content.length > 8000) {
         setComposerError(
-          'Message is too long for Phase 2 in-memory workspace (max 8,000 characters).',
+          'Message is too long for in-memory workspace (max 8,000 characters).',
         );
         return { ok: false, reason: 'too-long' };
       }
+
+      const attachmentContextParts = pendingAttachments.map((att) => {
+        if (att.kind === 'file' && att.textContent !== undefined) {
+          return `[Attached File: ${att.name} (${att.sizeBytes} bytes)]\n${att.textContent}`;
+        }
+        return `[Attached Image: ${att.name} (${att.mimeType}, ${att.sizeBytes} bytes)]`;
+      });
+
+      const brainContent =
+        attachmentContextParts.length > 0
+          ? `${content}\n\n${attachmentContextParts.join('\n\n')}`
+          : undefined;
 
       submissionLockRef.current = true;
       setIsSubmitting(true);
@@ -827,6 +1080,7 @@ export function useWorkspaceStore(options: WorkspaceStoreOptions = {}) {
         idSequenceRef.current += 1;
         const seq = idSequenceRef.current;
         const inIncognito = isIncognitoRef.current;
+        const capabilityMode = activeCapabilityModeRef.current;
         const selectedModel =
           brain.models.getModel(selectedModelIdRef.current) ??
           brain.models.getDefaultModel();
@@ -835,6 +1089,15 @@ export function useWorkspaceStore(options: WorkspaceStoreOptions = {}) {
           id: `msg-user-${Date.now()}-${seq}`,
           role: 'user',
           content,
+          brainContent,
+          attachments:
+            pendingAttachments.length > 0
+              ? pendingAttachments.map((att) => ({
+                  name: att.name,
+                  kind: att.kind,
+                  sizeBytes: att.sizeBytes,
+                }))
+              : undefined,
           timestamp,
           status: 'complete',
         };
@@ -853,10 +1116,12 @@ export function useWorkspaceStore(options: WorkspaceStoreOptions = {}) {
         let contextMessages: ChatMessage[] = [];
         let targetIncognitoId: string | null = null;
         const targetConversationId = activeConversationIdRef.current;
+        let rememberThisChat = !inIncognito;
 
         if (inIncognito) {
           const base = incognitoRef.current ?? createIncognitoSession();
           targetIncognitoId = base.id;
+          rememberThisChat = false;
           contextMessages = [...base.messages, userMessage];
           const updatedSession: Conversation = {
             ...base,
@@ -869,6 +1134,7 @@ export function useWorkspaceStore(options: WorkspaceStoreOptions = {}) {
           const existing = conversationsRef.current.find(
             (item) => item.id === targetConversationId,
           );
+          rememberThisChat = existing?.rememberThisChat !== false;
           contextMessages = existing ? [...existing.messages, userMessage] : [userMessage];
 
           setConversations((prev) => {
@@ -877,10 +1143,11 @@ export function useWorkspaceStore(options: WorkspaceStoreOptions = {}) {
               const fresh: Conversation = {
                 id: targetConversationId,
                 title: buildConversationTitle(content),
-                capabilityId: 'general-chat',
+                capabilityId: capabilityMode,
                 messages: [userMessage, assistantMessage],
                 createdAt: timestamp,
                 updatedAt: timestamp,
+                rememberThisChat: true,
               };
               return [fresh, ...prev];
             }
@@ -905,6 +1172,9 @@ export function useWorkspaceStore(options: WorkspaceStoreOptions = {}) {
 
         composerTextRef.current = '';
         setComposerText('');
+        if (rawContent === undefined) {
+          clearDraftAttachments();
+        }
         setSelectedStarterId(null);
         setActiveView({ kind: 'chat' });
 
@@ -915,6 +1185,8 @@ export function useWorkspaceStore(options: WorkspaceStoreOptions = {}) {
           targetConversationId,
           assistantMessageId: assistantMessage.id,
           contextMessages,
+          rememberThisChat,
+          capabilityMode,
         });
       } finally {
         submissionLockRef.current = false;
@@ -923,7 +1195,7 @@ export function useWorkspaceStore(options: WorkspaceStoreOptions = {}) {
         }
       }
     },
-    [brain, runBrainStream],
+    [brain, clearDraftAttachments, runBrainStream],
   );
 
   const toggleMessageReaction = useCallback(
@@ -1079,6 +1351,10 @@ export function useWorkspaceStore(options: WorkspaceStoreOptions = {}) {
           targetConversationId: currentConversation.id,
           assistantMessageId: messageId,
           contextMessages,
+          rememberThisChat: inIncognito
+            ? false
+            : currentConversation.rememberThisChat !== false,
+          capabilityMode: activeCapabilityModeRef.current,
         });
       } finally {
         submissionLockRef.current = false;
@@ -1100,6 +1376,7 @@ export function useWorkspaceStore(options: WorkspaceStoreOptions = {}) {
     incognitoConversation,
     activeView,
     activeCapability,
+    activeCapabilityMode,
     activePlannedSection,
     isDesktopSidebarOpen,
     setIsDesktopSidebarOpen,
@@ -1109,6 +1386,11 @@ export function useWorkspaceStore(options: WorkspaceStoreOptions = {}) {
     updateComposerText,
     composerError,
     setComposerError,
+    draftAttachments,
+    attachmentError,
+    addFileAttachments,
+    removeDraftAttachment,
+    clearDraftAttachments,
     workspaceNotice,
     setWorkspaceNotice,
     isSubmitting,
@@ -1136,6 +1418,13 @@ export function useWorkspaceStore(options: WorkspaceStoreOptions = {}) {
     stopGeneration,
     activityLogs,
     clearActivityLogs,
+    memories,
+    addMemory,
+    updateMemory,
+    deleteMemory,
+    clearMemories,
+    saveMessageToMemory,
+    toggleConversationRemember,
     enterIncognito,
     exitIncognito,
     toggleIncognito,

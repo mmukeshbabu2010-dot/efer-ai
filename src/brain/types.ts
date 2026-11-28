@@ -5,6 +5,17 @@ export interface BrainMessage {
   content: string;
 }
 
+export type MemoryCategory = 'preference' | 'fact' | 'project' | 'style';
+
+export interface MemoryItem {
+  id: string;
+  category: MemoryCategory;
+  content: string;
+  createdAt: string;
+  updatedAt: string;
+  sourceConversationId?: string;
+}
+
 export type ModelPrivacyTier =
   | 'mock-local'
   | 'local-device'

@@ -29,11 +29,13 @@ interface SidebarProps {
   conversations: Conversation[];
   activeConversationId: string;
   activeView: ActiveWorkspaceView;
+  activeCapabilityMode?: CapabilityId;
   theme: ThemeMode;
   isDesktopOpen: boolean;
   isMobileOpen: boolean;
   isIncognito: boolean;
   activityLogCount: number;
+  memoryCount?: number;
   onCloseMobile: () => void;
   onExitIncognito: () => void;
   onNewThread: () => void;
@@ -78,11 +80,13 @@ export function Sidebar({
   conversations,
   activeConversationId,
   activeView,
+  activeCapabilityMode = 'general-chat',
   theme,
   isDesktopOpen,
   isMobileOpen,
   isIncognito,
   activityLogCount,
+  memoryCount = 0,
   onCloseMobile,
   onExitIncognito,
   onNewThread,
@@ -211,8 +215,16 @@ export function Sidebar({
           </h2>
           <ul className="space-y-1">
             {EFER_CAPABILITIES.map((cap) => {
+              const isChatCap =
+                cap.id === 'general-chat' ||
+                cap.id === 'code' ||
+                cap.id === 'documents' ||
+                cap.id === 'voice';
               const isSelected =
-                (cap.id === 'general-chat' && activeView.kind === 'chat') ||
+                (isChatCap &&
+                  activeView.kind === 'chat' &&
+                  activeCapabilityMode === cap.id) ||
+                (cap.id === 'memory' && activeView.kind === 'memory') ||
                 (activeView.kind === 'planned-capability' &&
                   activeView.capabilityId === cap.id);
 
@@ -255,13 +267,16 @@ export function Sidebar({
             {EFER_PLANNED_SECTIONS.map((section) => {
               const isActivity = section.id === 'activity';
               const isSettings = section.id === 'settings';
-              const isActiveSection = isActivity || isSettings;
+              const isMemory = section.id === 'memory';
+              const isActiveSection = isActivity || isSettings || isMemory;
               const isSelected = isActivity
                 ? activeView.kind === 'activity'
                 : isSettings
                   ? activeView.kind === 'settings'
-                  : activeView.kind === 'planned-section' &&
-                    activeView.sectionId === section.id;
+                  : isMemory
+                    ? activeView.kind === 'memory'
+                    : activeView.kind === 'planned-section' &&
+                      activeView.sectionId === section.id;
 
               return (
                 <li key={section.id}>
@@ -285,9 +300,13 @@ export function Sidebar({
                         ? activityLogCount > 0
                           ? `Active · ${activityLogCount}`
                           : 'Active'
-                        : isSettings
-                          ? 'Active'
-                          : 'Planned'}
+                        : isMemory
+                          ? memoryCount > 0
+                            ? `Active · ${memoryCount}`
+                            : 'Active'
+                          : isSettings
+                            ? 'Active'
+                            : 'Planned'}
                     </span>
                   </button>
                 </li>
@@ -328,7 +347,7 @@ export function Sidebar({
         </div>
 
         <p className="px-1 text-xs text-text-secondary">
-          Phase 4 · Brain, Activity &amp; Providers
+          EFER Brain · Local-First Workspace
         </p>
       </div>
     </div>

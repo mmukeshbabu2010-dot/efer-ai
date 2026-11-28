@@ -19,6 +19,7 @@ import {
   X,
 } from 'lucide-react';
 import type { FallbackMode, ModelDescriptor } from '../../brain/types';
+import type { DraftAttachment } from '../../types/workspace';
 import { MarkdownPreview } from '../common/MarkdownPreview';
 
 interface SpeechRecognitionAlternativeLike {
@@ -78,6 +79,10 @@ interface ComposerProps {
   availableModels: ModelDescriptor[];
   selectedModelId: string;
   fallbackMode: FallbackMode;
+  draftAttachments?: DraftAttachment[];
+  attachmentError?: string | null;
+  onAddAttachments?: (files: FileList | File[]) => void | Promise<void>;
+  onRemoveAttachment?: (attachmentId: string) => void;
   onSelectModel: (modelId: string) => void;
   onChangeFallbackMode: (mode: FallbackMode) => void;
   onStopGeneration: () => void;
@@ -216,6 +221,10 @@ export function Composer({
   availableModels,
   selectedModelId,
   fallbackMode,
+  draftAttachments = [],
+  attachmentError = null,
+  onAddAttachments,
+  onRemoveAttachment,
   onSelectModel,
   onChangeFallbackMode,
   onStopGeneration,
@@ -224,6 +233,9 @@ export function Composer({
 }: ComposerProps) {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const imageInputRef = useRef<HTMLInputElement | null>(null);
+  const cameraInputRef = useRef<HTMLInputElement | null>(null);
   const recognitionRef = useRef<SpeechRecognitionInstanceLike | null>(null);
   const dictationBaseRef = useRef<string>('');
   const finalTranscriptRef = useRef<string>('');
@@ -375,7 +387,11 @@ export function Composer({
       }
 
       if (!bypassSecretCheck) {
-        const matches = scanForSecrets(value);
+        const attachmentTexts = draftAttachments
+          .map((att) => att.textContent ?? '')
+          .filter(Boolean)
+          .join('\n');
+        const matches = scanForSecrets(`${value}\n${attachmentTexts}`);
         if (matches.length > 0) {
           setSecretMatches(matches);
           setIsAttachMenuOpen(false);
@@ -388,7 +404,7 @@ export function Composer({
       void onSend();
       setComposerMode('write');
     },
-    [isRecording, isSubmitting, onSend, stopVoiceInput, value],
+    [draftAttachments, isRecording, isSubmitting, onSend, stopVoiceInput, value],
   );
 
   useEffect(() => {
@@ -415,9 +431,26 @@ export function Composer({
 
   const handlePickAttachment = (kind: AttachmentKind) => {
     setIsAttachMenuOpen(false);
-    setAttachNotice(
-      `${kind} input is planned for Phase 7 multimodal tools. Only text prompts are recorded in Phase 1.`,
-    );
+    setAttachNotice(null);
+    if (!onAddAttachments) {
+      setAttachNotice('File attachments are unavailable in this view.');
+      return;
+    }
+    if (kind === 'File') {
+      fileInputRef.current?.click();
+    } else if (kind === 'Image') {
+      imageInputRef.current?.click();
+    } else {
+      cameraInputRef.current?.click();
+    }
+  };
+
+  const handleFileInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (files && files.length > 0 && onAddAttachments) {
+      void onAddAttachments(files);
+    }
+    event.target.value = '';
   };
 
   const handleStartVoiceInput = () => {
@@ -509,25 +542,55 @@ export function Composer({
     }
   };
 
-  const canSend = value.trim().length > 0 && !isSubmitting;
+  const canSend =
+    (value.trim().length > 0 || draftAttachments.length > 0) && !isSubmitting;
   const activeModel =
     availableModels.find((m) => m.id === selectedModelId) ?? availableModels[0];
+  const hasImageAttachment = draftAttachments.some((att) => att.kind === 'image');
 
   return (
     <div className="px-3 sm:px-screen pt-2 pb-[max(12px,env(safe-area-inset-bottom))] bg-bg shrink-0">
+      <input
+        ref={fileInputRef}
+        type="file"
+        multiple
+        accept=".txt,.md,.markdown,.json,.csv,.ts,.tsx,.js,.jsx,.py,.html,.css,.yml,.yaml,.log"
+        onChange={handleFileInputChange}
+        aria-label="Attach text document"
+        className="sr-only"
+      />
+      <input
+        ref={imageInputRef}
+        type="file"
+        multiple
+        accept="image/png,image/jpeg,image/webp,image/gif"
+        onChange={handleFileInputChange}
+        aria-label="Attach image file"
+        className="sr-only"
+      />
+      <input
+        ref={cameraInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        onChange={handleFileInputChange}
+        aria-label="Capture image from camera"
+        className="sr-only"
+      />
+
       <div className="max-w-3xl mx-auto space-y-2 relative" ref={containerRef}>
         <div className="sr-only" aria-live="polite" aria-atomic="true">
           {shortcutStatusMessage ?? ''}
         </div>
 
-        {error && (
+        {(error || attachmentError) && (
           <div
             role="alert"
             className="flex items-center justify-between gap-2 px-3.5 py-2 rounded-card bg-card border border-danger/40 text-xs text-danger"
           >
             <span className="flex items-center gap-2">
               <AlertCircle className="w-4 h-4 shrink-0" aria-hidden="true" />
-              <span>{error}</span>
+              <span>{error ?? attachmentError}</span>
             </span>
           </div>
         )}
@@ -682,6 +745,49 @@ export function Composer({
                 </li>
               ))}
             </ul>
+          </div>
+        )}
+
+        {draftAttachments.length > 0 && (
+          <div className="space-y-1.5">
+            <div className="flex flex-wrap gap-2">
+              {draftAttachments.map((att) => (
+                <div
+                  key={att.id}
+                  className="inline-flex items-center gap-2 pl-2 pr-1.5 py-1.5 rounded-[12px] bg-card border border-border text-xs text-text-primary max-w-full"
+                >
+                  {att.kind === 'image' && att.previewUrl ? (
+                    <img
+                      src={att.previewUrl}
+                      alt={att.name}
+                      className="w-6 h-6 rounded-[6px] object-cover shrink-0 border border-border"
+                    />
+                  ) : (
+                    <FileText className="w-3.5 h-3.5 text-accent shrink-0" aria-hidden="true" />
+                  )}
+                  <span className="truncate max-w-[160px] font-medium">{att.name}</span>
+                  <span className="text-[11px] font-mono text-text-secondary shrink-0">
+                    {Math.max(1, Math.round(att.sizeBytes / 1024))} KB
+                  </span>
+                  {onRemoveAttachment && (
+                    <button
+                      type="button"
+                      onClick={() => onRemoveAttachment(att.id)}
+                      aria-label={`Remove ${att.name}`}
+                      className="p-0.5 rounded-[6px] text-text-secondary hover:text-text-primary focus-visible:outline-2 focus-visible:outline-accent"
+                    >
+                      <X className="w-3.5 h-3.5" aria-hidden="true" />
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+            {hasImageAttachment && activeModel && !activeModel.capabilities.vision && (
+              <p className="text-[11px] text-warning px-1">
+                Note: {activeModel.displayName} is text-only; image pixels are previewed locally
+                and metadata is shared in context. Switch to Gemini Flash proxy for vision.
+              </p>
+            )}
           </div>
         )}
 

@@ -1,4 +1,59 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
+import { Check, Copy } from 'lucide-react';
+
+interface CodeBlockProps {
+  lang: string;
+  codeText: string;
+  codeKey: string;
+  highlightQuery?: string;
+}
+
+function CodeBlock({ lang, codeText, codeKey, highlightQuery }: CodeBlockProps) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    try {
+      if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(codeText);
+        setCopied(true);
+        window.setTimeout(() => setCopied(false), 1600);
+      }
+    } catch {
+      // Ignore clipboard failures in restricted contexts
+    }
+  };
+
+  return (
+    <div className="rounded-[12px] bg-card-subtle border border-border overflow-hidden">
+      <div className="flex items-center justify-between gap-2 px-3 py-1.5 border-b border-border text-[11px] font-mono text-text-secondary">
+        <span>{lang || 'code'}</span>
+        <button
+          type="button"
+          onClick={() => {
+            void handleCopy();
+          }}
+          aria-label="Copy code block"
+          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-[6px] hover:bg-card hover:text-text-primary transition-colors focus-visible:outline-2 focus-visible:outline-accent"
+        >
+          {copied ? (
+            <>
+              <Check className="w-3 h-3 text-success" aria-hidden="true" />
+              <span>Copied</span>
+            </>
+          ) : (
+            <>
+              <Copy className="w-3 h-3" aria-hidden="true" />
+              <span>Copy</span>
+            </>
+          )}
+        </button>
+      </div>
+      <pre className="p-3 text-xs font-mono leading-relaxed text-text-primary overflow-x-auto">
+        <code>{highlightTextNodes(codeText, highlightQuery, codeKey)}</code>
+      </pre>
+    </div>
+  );
+}
 
 interface MarkdownPreviewProps {
   content: string;
@@ -174,21 +229,13 @@ export function MarkdownPreview({
       i += 1;
       const codeKey = `code-${blockKey++}`;
       blocks.push(
-        <div
+        <CodeBlock
           key={codeKey}
-          className="rounded-[12px] bg-card-subtle border border-border overflow-x-auto"
-        >
-          {lang && (
-            <div className="px-3 py-1 border-b border-border text-[11px] font-mono text-text-secondary">
-              {lang}
-            </div>
-          )}
-          <pre className="p-3 text-xs font-mono leading-relaxed text-text-primary overflow-x-auto">
-            <code>
-              {highlightTextNodes(codeLines.join('\n'), highlightQuery, codeKey)}
-            </code>
-          </pre>
-        </div>,
+          lang={lang}
+          codeText={codeLines.join('\n')}
+          codeKey={codeKey}
+          highlightQuery={highlightQuery}
+        />,
       );
       continue;
     }

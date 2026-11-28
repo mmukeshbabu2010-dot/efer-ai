@@ -9,6 +9,7 @@ import { TopBar } from './components/layout/TopBar';
 import { useNetworkStatus } from './hooks/useNetworkStatus';
 import { useVisualViewport } from './hooks/useVisualViewport';
 import { useWorkspaceStore } from './state/useWorkspaceStore';
+import { EFER_CAPABILITIES } from './brain/capabilities';
 import { downloadConversation, type ExportFormat } from './utils/exportConversation';
 
 const ActivityLogView = lazy(() =>
@@ -20,6 +21,12 @@ const ActivityLogView = lazy(() =>
 const SettingsView = lazy(() =>
   import('./components/settings/SettingsView').then((mod) => ({
     default: mod.SettingsView,
+  })),
+);
+
+const MemoryView = lazy(() =>
+  import('./components/memory/MemoryView').then((mod) => ({
+    default: mod.MemoryView,
   })),
 );
 
@@ -75,29 +82,37 @@ export function App() {
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
   }, [clearAndFocusComposer, store.activeView.kind]);
 
+  const activeModeLabel =
+    EFER_CAPABILITIES.find((c) => c.id === store.activeCapabilityMode)?.label ??
+    'General Chat';
+
   const headerTitle =
     store.activeView.kind === 'activity'
       ? 'Activity Log'
       : store.activeView.kind === 'settings'
         ? 'Settings & Providers'
-        : store.activeView.kind === 'planned-capability'
-          ? store.activeCapability.label
-          : store.activeView.kind === 'planned-section' && store.activePlannedSection
-            ? store.activePlannedSection.label
-            : store.activeConversation?.title ?? 'General Chat';
+        : store.activeView.kind === 'memory'
+          ? 'Memory Controls'
+          : store.activeView.kind === 'planned-capability'
+            ? store.activeCapability.label
+            : store.activeView.kind === 'planned-section' && store.activePlannedSection
+              ? store.activePlannedSection.label
+              : store.activeConversation?.title ?? 'General Chat';
 
   const headerSubtitle =
     store.activeView.kind === 'activity'
       ? 'Phase 3 · Routing Traces'
       : store.activeView.kind === 'settings'
         ? 'Phase 4 · Providers & Fallback'
-        : store.activeView.kind === 'planned-capability'
-          ? store.activeCapability.phaseLabel
-          : store.activeView.kind === 'planned-section' && store.activePlannedSection
-            ? store.activePlannedSection.phaseLabel
-            : store.isIncognito
-              ? 'Incognito · RAM only'
-              : 'General Chat';
+        : store.activeView.kind === 'memory'
+          ? 'Phase 5 · User-Owned Context'
+          : store.activeView.kind === 'planned-capability'
+            ? store.activeCapability.phaseLabel
+            : store.activeView.kind === 'planned-section' && store.activePlannedSection
+              ? store.activePlannedSection.phaseLabel
+              : store.isIncognito
+                ? 'Incognito · RAM only'
+                : activeModeLabel;
 
   const canExport =
     store.activeView.kind === 'chat' &&
@@ -108,6 +123,13 @@ export function App() {
     store.activeView.kind === 'chat' &&
     store.activeConversation !== null &&
     store.activeConversation.messages.length > 0;
+  const canToggleRemember =
+    store.activeView.kind === 'chat' &&
+    store.activeConversation !== null &&
+    !store.isIncognito &&
+    !store.activeConversation.isIncognito;
+  const isChatRemembered =
+    !store.isIncognito && store.activeConversation?.rememberThisChat !== false;
 
   const handleExport = (format: ExportFormat) => {
     if (!store.activeConversation || store.isIncognito || store.activeConversation.isIncognito) {
@@ -122,11 +144,13 @@ export function App() {
         conversations={store.conversations}
         activeConversationId={store.activeConversationId}
         activeView={store.activeView}
+        activeCapabilityMode={store.activeCapabilityMode}
         theme={store.theme}
         isDesktopOpen={store.isDesktopSidebarOpen}
         isMobileOpen={store.isMobileDrawerOpen}
         isIncognito={store.isIncognito}
         activityLogCount={store.activityLogs.length}
+        memoryCount={store.memories.length}
         onCloseMobile={() => store.setIsMobileDrawerOpen(false)}
         onExitIncognito={store.exitIncognito}
         onNewThread={store.createNewThread}
@@ -149,6 +173,8 @@ export function App() {
           isIncognito={store.isIncognito}
           canExport={canExport}
           canSearch={canSearch}
+          canToggleRemember={canToggleRemember}
+          isChatRemembered={isChatRemembered}
           isSearchOpen={isThreadSearchOpen}
           isDesktopSidebarOpen={store.isDesktopSidebarOpen}
           onToggleDesktopSidebar={() =>
@@ -157,6 +183,11 @@ export function App() {
           onOpenMobileDrawer={handleOpenMobileDrawer}
           onToggleTheme={store.toggleTheme}
           onToggleIncognito={store.toggleIncognito}
+          onToggleChatRemember={() => {
+            if (store.activeConversation && !store.isIncognito) {
+              store.toggleConversationRemember(store.activeConversation.id);
+            }
+          }}
           onNewThread={store.createNewThread}
           onToggleSearch={() => {
             setIsThreadSearchOpen((prev) => {
@@ -272,6 +303,26 @@ export function App() {
                 onBackToChat={() => store.selectCapability('general-chat')}
               />
             </Suspense>
+          ) : store.activeView.kind === 'memory' ? (
+            <Suspense
+              fallback={
+                <div className="flex-1 flex items-center justify-center text-xs text-text-secondary">
+                  Loading Memory Controls…
+                </div>
+              }
+            >
+              <MemoryView
+                memories={store.memories}
+                activeConversation={store.activeConversation}
+                isIncognito={store.isIncognito}
+                onAddMemory={store.addMemory}
+                onUpdateMemory={store.updateMemory}
+                onDeleteMemory={store.deleteMemory}
+                onClearMemories={store.clearMemories}
+                onToggleConversationRemember={store.toggleConversationRemember}
+                onBackToChat={() => store.selectCapability('general-chat')}
+              />
+            </Suspense>
           ) : store.activeView.kind === 'planned-capability' ? (
             <Suspense
               fallback={
@@ -320,9 +371,11 @@ export function App() {
                   onToggleReaction={store.toggleMessageReaction}
                   onDeleteMessage={store.deleteMessage}
                   onRegenerateMessage={store.regenerateMessage}
+                  onSaveToMemory={store.saveMessageToMemory}
                 />
               ) : (
                 <EmptyState
+                  activeCapabilityMode={store.activeCapabilityMode}
                   selectedStarterId={store.selectedStarterId}
                   onSelectStarter={store.populateStarterPrompt}
                   onOpenSamplePreview={() =>
@@ -352,6 +405,10 @@ export function App() {
                 availableModels={store.availableModels}
                 selectedModelId={store.selectedModelId}
                 fallbackMode={store.fallbackMode}
+                draftAttachments={store.draftAttachments}
+                attachmentError={store.attachmentError}
+                onAddAttachments={store.addFileAttachments}
+                onRemoveAttachment={store.removeDraftAttachment}
                 onSelectModel={store.setSelectedModelId}
                 onChangeFallbackMode={store.setFallbackMode}
                 onStopGeneration={store.stopGeneration}

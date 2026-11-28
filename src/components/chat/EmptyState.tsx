@@ -1,8 +1,13 @@
 import { Calendar, Code2, Lightbulb, Sparkles } from 'lucide-react';
-import { STARTER_PROMPTS } from '../../brain/capabilities';
-import type { StarterIconKey } from '../../types/workspace';
+import {
+  CAPABILITY_STARTER_PROMPTS,
+  EFER_CAPABILITIES,
+  STARTER_PROMPTS,
+} from '../../brain/capabilities';
+import type { CapabilityId, StarterIconKey } from '../../types/workspace';
 
 interface EmptyStateProps {
+  activeCapabilityMode?: CapabilityId;
   selectedStarterId: string | null;
   onSelectStarter: (id: string, prompt: string) => void;
   onOpenSamplePreview: () => void;
@@ -22,23 +27,34 @@ function renderStarterIcon(iconKey: StarterIconKey) {
 }
 
 export function EmptyState({
+  activeCapabilityMode = 'general-chat',
   selectedStarterId,
   onSelectStarter,
   onOpenSamplePreview,
 }: EmptyStateProps) {
+  const capabilityMeta =
+    EFER_CAPABILITIES.find((c) => c.id === activeCapabilityMode) ?? EFER_CAPABILITIES[0];
+  const starters =
+    CAPABILITY_STARTER_PROMPTS[activeCapabilityMode] ?? STARTER_PROMPTS;
+
   return (
     <div className="flex-1 overflow-y-auto overscroll-contain px-3.5 sm:px-screen py-5 sm:py-10 flex items-start sm:items-center justify-center">
       <div className="w-full max-w-2xl mx-auto space-y-5 sm:space-y-8 my-auto">
         <div className="space-y-2 sm:space-y-3 text-center">
           <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight text-text-primary text-balance">
-            Welcome to EFER AI
+            {activeCapabilityMode === 'general-chat'
+              ? 'Welcome to EFER AI'
+              : capabilityMeta.label}
           </h2>
           <p className="text-sm sm:text-base md:text-lg text-text-secondary">
-            How can I help you today?
+            {activeCapabilityMode === 'general-chat'
+              ? 'How can I help you today?'
+              : capabilityMeta.shortDescription}
           </p>
           <p className="text-[13px] text-text-secondary max-w-lg mx-auto leading-relaxed">
-            Phase 2 · EFER Brain Demo Provider active for streaming and permission-based fallback
-            testing. External provider API keys are not connected yet.
+            {activeCapabilityMode === 'general-chat'
+              ? 'EFER Brain is ready with local Demo testing, optional Local Ollama, Server Proxy (/api/*), local document attachments, and user-owned Memory controls.'
+              : capabilityMeta.roadmapSummary}
           </p>
         </div>
 
@@ -47,7 +63,7 @@ export function EmptyState({
           aria-label="Starter prompts"
           className="grid grid-cols-2 gap-2.5 sm:gap-card-gap"
         >
-          {STARTER_PROMPTS.map((item) => {
+          {starters.map((item) => {
             const isSelected = selectedStarterId === item.id;
             return (
               <button

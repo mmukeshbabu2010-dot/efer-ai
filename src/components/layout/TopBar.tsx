@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import {
+  BookmarkCheck,
   Download,
   EyeOff,
   FileCode2,
@@ -26,12 +27,15 @@ interface TopBarProps {
   isIncognito: boolean;
   canExport: boolean;
   canSearch: boolean;
+  canToggleRemember?: boolean;
+  isChatRemembered?: boolean;
   isSearchOpen: boolean;
   isDesktopSidebarOpen: boolean;
   onToggleDesktopSidebar: () => void;
   onOpenMobileDrawer: () => void;
   onToggleTheme: () => void;
   onToggleIncognito: () => void;
+  onToggleChatRemember?: () => void;
   onNewThread: () => void;
   onToggleSearch: () => void;
   onExport: (format: ExportFormat) => void;
@@ -45,12 +49,15 @@ export function TopBar({
   isIncognito,
   canExport,
   canSearch,
+  canToggleRemember = false,
+  isChatRemembered = true,
   isSearchOpen,
   isDesktopSidebarOpen,
   onToggleDesktopSidebar,
   onOpenMobileDrawer,
   onToggleTheme,
   onToggleIncognito,
+  onToggleChatRemember,
   onNewThread,
   onToggleSearch,
   onExport,
@@ -169,6 +176,35 @@ export function TopBar({
           <EyeOff className="w-4 h-4 shrink-0" aria-hidden="true" />
           <span className="hidden lg:inline">Incognito</span>
         </button>
+
+        {canToggleRemember && onToggleChatRemember && (
+          <button
+            type="button"
+            onClick={onToggleChatRemember}
+            aria-pressed={isChatRemembered}
+            aria-label={
+              isChatRemembered
+                ? 'Pause EFER Memory for this chat'
+                : 'Enable EFER Memory for this chat'
+            }
+            title={
+              isChatRemembered
+                ? 'Remember this chat: saved memories are applied to context'
+                : 'Memory paused for this chat: saved memories are excluded'
+            }
+            className={`hidden xl:inline-flex items-center justify-center gap-1.5 h-10 px-3 rounded-card border text-xs font-medium transition-colors whitespace-nowrap shrink-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent ${
+              isChatRemembered
+                ? 'border-border bg-card text-text-primary hover:bg-card-subtle'
+                : 'border-warning/50 bg-card-subtle text-text-secondary'
+            }`}
+          >
+            <BookmarkCheck
+              className={`w-3.5 h-3.5 shrink-0 ${isChatRemembered ? 'text-accent' : 'text-text-secondary'}`}
+              aria-hidden="true"
+            />
+            <span>{isChatRemembered ? 'Memory On' : 'Memory Paused'}</span>
+          </button>
+        )}
 
         {canSearch && (
           <button
