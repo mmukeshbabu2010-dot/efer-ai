@@ -75,10 +75,10 @@ export interface WorkspaceStoreOptions {
 }
 
 /**
- * Phase 2 workspace store backed by EFER Brain.
+ * Workspace store backed by EFER Brain.
  *
  * Persistence & Privacy boundary:
- * - No automatic localStorage/IndexedDB conversation persistence exists yet.
+ * - Conversation transcripts stay in session RAM only.
  * - Normal conversations and Incognito sessions are strictly separated in React state.
  * - Exiting Incognito aborts any active stream and wipes `incognitoConversation`
  *   from memory immediately so no chunks can leak back after exit.
@@ -483,24 +483,30 @@ export function useWorkspaceStore(options: WorkspaceStoreOptions = {}) {
         continue;
       }
 
+      const safeName = file.name.replace(/[\u0000-\u001f\u007f]/g, '').slice(0, 180) || 'attachment';
+
       if (file.size > 100 * 1024) {
-        setAttachmentError(`${file.name} exceeds the 100 KB local text document limit.`);
+        setAttachmentError(`${safeName} exceeds the 100 KB local text document limit.`);
         continue;
       }
 
       try {
         const textContent = await file.text();
+        if (textContent.includes('\u0000')) {
+          setAttachmentError(`${safeName} appears to be a binary file and cannot be read as text.`);
+          continue;
+        }
         idSequenceRef.current += 1;
         accepted.push({
           id: `att-${Date.now()}-${idSequenceRef.current}`,
           kind: 'file',
-          name: file.name,
+          name: safeName,
           mimeType: file.type || 'text/plain',
           sizeBytes: file.size,
           textContent,
         });
       } catch {
-        setAttachmentError(`Could not read ${file.name} as UTF-8 text.`);
+        setAttachmentError(`Could not read ${safeName} as UTF-8 text.`);
       }
     }
 

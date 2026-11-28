@@ -17,6 +17,20 @@ export function normalizeOllamaBaseUrl(rawUrl: string): string {
   if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
     throw new Error('Ollama endpoint must use http: or https:.');
   }
+  if (parsed.username || parsed.password) {
+    throw new Error('Ollama endpoint URL must not contain embedded credentials.');
+  }
+  if (parsed.search || parsed.hash) {
+    throw new Error('Ollama endpoint URL must not include query parameters or hashes.');
+  }
+  const hostname = parsed.hostname.toLowerCase();
+  if (
+    hostname.startsWith('169.254.') ||
+    hostname === 'metadata.google.internal' ||
+    hostname === 'metadata'
+  ) {
+    throw new Error('Link-local and metadata endpoints are not allowed.');
+  }
   return parsed.toString().replace(/\/+$/, '');
 }
 

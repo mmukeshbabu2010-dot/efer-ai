@@ -19,6 +19,15 @@ describe('OllamaAdapter', () => {
     expect(() => normalizeOllamaBaseUrl('ftp://localhost:11434')).toThrow(
       /http: or https:/i,
     );
+    expect(() => normalizeOllamaBaseUrl('http://user:pass@localhost:11434')).toThrow(
+      /credentials/i,
+    );
+    expect(() => normalizeOllamaBaseUrl('http://localhost:11434?token=abc')).toThrow(
+      /query parameters/i,
+    );
+    expect(() => normalizeOllamaBaseUrl('http://169.254.169.254/latest/meta-data')).toThrow(
+      /metadata/i,
+    );
   });
 
   it('checks /api/tags health honestly on success and unreachable failure', async () => {

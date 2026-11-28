@@ -135,20 +135,20 @@ function buildDemoReply(request: BrainRequest): string {
 
   const isFallback = request.modelId === DEFAULT_DEMO_FALLBACK_MODEL_ID;
   const modelHeading = isFallback
-    ? '**EFER Demo · Fast Fallback** (Local Phase 2 Mock Adapter)'
-    : '**EFER Demo · Balanced** (Local Phase 2 Mock Adapter)';
+    ? '**EFER Demo · Fast Fallback** (Local Demo Provider)'
+    : '**EFER Demo · Balanced** (Local Demo Provider)';
 
   const lines = [
     `${modelHeading}`,
     '',
     snippet
-      ? `Processed your prompt in local Phase 2 demo mode: "${snippet}"`
-      : 'Processed your turn in local Phase 2 demo mode.',
+      ? `Processed your prompt in local Demo mode: "${snippet}"`
+      : 'Processed your turn in local Demo mode.',
     '',
     request.isIncognito
       ? '- **Privacy scope**: Running inside an isolated Incognito session (RAM only, excluded from exports, wiped on exit).'
       : '- **Privacy scope**: Held in active workspace memory without sending keys or prompts to external servers.',
-    '- **Architecture status**: Streaming, context windowing, error normalization, and permission-based fallback are routed through `EferBrain`. Live provider keys remain unconnected.',
+    '- **Routing**: Streaming, context windowing, error handling, and permission-based fallback are routed through `EferBrain`. Switch to Local Ollama or Server Proxy in Settings when ready.',
   ];
 
   if (!isFallback) {
@@ -192,7 +192,7 @@ export class MockDemoAdapter implements ProviderAdapter {
     return {
       providerId: this.id,
       healthy: true,
-      detail: 'Local Phase 2 mock adapter ready (no network or API keys required).',
+      detail: 'Local Demo provider ready (no network or API keys required).',
     };
   }
 

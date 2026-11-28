@@ -9,7 +9,7 @@ export const INITIAL_MODEL_CATALOG: ModelDescriptor[] = [
     id: DEFAULT_DEMO_PRIMARY_MODEL_ID,
     providerId: 'mock-demo',
     displayName: 'EFER Demo · Balanced',
-    shortDescription: 'Phase 2–4 local mock adapter for streaming and fallback testing (no external API).',
+    shortDescription: 'Built-in local Demo provider for streaming and fallback testing (no external API).',
     capabilities: {
       chat: true,
       streaming: true,
@@ -27,7 +27,7 @@ export const INITIAL_MODEL_CATALOG: ModelDescriptor[] = [
     id: DEFAULT_DEMO_FALLBACK_MODEL_ID,
     providerId: 'mock-demo',
     displayName: 'EFER Demo · Fast Fallback',
-    shortDescription: 'Secondary mock adapter used when permission-based fallback triggers.',
+    shortDescription: 'Secondary built-in Demo model used when permission-based fallback triggers.',
     capabilities: {
       chat: true,
       streaming: true,

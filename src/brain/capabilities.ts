@@ -47,7 +47,7 @@ export const EFER_CAPABILITIES: CapabilityDefinition[] = [
     label: 'EFER Memory',
     shortDescription: 'Transparent, user-controlled long-term preferences and context.',
     status: 'active',
-    phaseLabel: 'Active · Phase 5',
+    phaseLabel: 'Active · Local Storage',
     roadmapSummary:
       'Search, add, edit, or delete saved memories, and toggle per-conversation memory injection. Strictly disabled in Incognito.',
   },
@@ -75,7 +75,7 @@ export const EFER_PLANNED_SECTIONS: PlannedSectionDefinition[] = [
   {
     id: 'settings',
     label: 'Settings & Providers',
-    phaseLabel: 'Active · Phase 4',
+    phaseLabel: 'Active · Adapters & Fallback',
     description:
       'Centralised provider management for EFER Demo, Local Ollama, and Server Proxy (/api/*) adapters plus permission-based fallback rules.',
     plannedItems: [
@@ -87,7 +87,7 @@ export const EFER_PLANNED_SECTIONS: PlannedSectionDefinition[] = [
   {
     id: 'activity',
     label: 'Activity Log',
-    phaseLabel: 'Active · Phase 3',
+    phaseLabel: 'Active · Routing Traces',
     description:
       'Transparent routing history showing intent detection, provider selection, fallback decisions, and real response timings.',
     plannedItems: [
@@ -99,7 +99,7 @@ export const EFER_PLANNED_SECTIONS: PlannedSectionDefinition[] = [
   {
     id: 'memory',
     label: 'Memory Controls',
-    phaseLabel: 'Active · Phase 5',
+    phaseLabel: 'Active · User-Owned Context',
     description:
       'User-owned context controls allowing you to review, search, edit, or delete what EFER AI remembers across sessions.',
     plannedItems: [
@@ -248,7 +248,7 @@ export function createInitialConversations(): Conversation[] {
           id: 'sample-msg-2',
           role: 'assistant',
           content: [
-            'Sample UI Preview (no external AI provider is connected in Phase 1):',
+            'Sample Conversation Preview:',
             '',
             '• A black hole is a region in space where gravity is extremely strong — so strong that nothing, not even light, can escape it.',
             '• They form when a massive star collapses at the end of its life.',

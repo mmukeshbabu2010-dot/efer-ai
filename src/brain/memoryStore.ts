@@ -27,18 +27,29 @@ function resolveDefaultStorage(): StorageLike | null {
   return null;
 }
 
+const MAX_MEMORY_CONTENT_CHARS = 600;
+const MAX_RAW_STORAGE_BYTES = 256_000;
+
+function sanitizeControlChars(text: string): string {
+  return text.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, '');
+}
+
 function isValidMemoryItem(raw: unknown): raw is MemoryItem {
   if (typeof raw !== 'object' || raw === null) return false;
   const candidate = raw as Partial<MemoryItem>;
   return (
     typeof candidate.id === 'string' &&
     candidate.id.length > 0 &&
+    candidate.id.length <= 128 &&
     typeof candidate.content === 'string' &&
     candidate.content.trim().length > 0 &&
+    candidate.content.length <= MAX_MEMORY_CONTENT_CHARS &&
     typeof candidate.category === 'string' &&
     VALID_CATEGORIES.has(candidate.category as MemoryCategory) &&
     typeof candidate.createdAt === 'string' &&
-    typeof candidate.updatedAt === 'string'
+    candidate.createdAt.length <= 64 &&
+    typeof candidate.updatedAt === 'string' &&
+    candidate.updatedAt.length <= 64
   );
 }
 
@@ -48,10 +59,16 @@ export function loadMemoriesFromStorage(
   if (!storage) return [];
   try {
     const raw = storage.getItem(MEMORY_STORAGE_KEY);
-    if (!raw) return [];
+    if (!raw || raw.length > MAX_RAW_STORAGE_BYTES) return [];
     const parsed: unknown = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
-    return parsed.filter(isValidMemoryItem).slice(0, MAX_STORED_MEMORIES);
+    return parsed
+      .filter(isValidMemoryItem)
+      .slice(0, MAX_STORED_MEMORIES)
+      .map((item) => ({
+        ...item,
+        content: sanitizeControlChars(item.content).slice(0, MAX_MEMORY_CONTENT_CHARS),
+      }));
   } catch {
     return [];
   }

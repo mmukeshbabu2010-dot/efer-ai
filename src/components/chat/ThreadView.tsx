@@ -566,8 +566,8 @@ export function ThreadView({
             <div className="flex items-start gap-3 p-3 sm:p-3.5 rounded-card bg-card-subtle border border-border text-[13px] sm:text-sm text-text-secondary">
               <Info className="w-4 h-4 text-accent mt-0.5 shrink-0" aria-hidden="true" />
               <span>
-                This is a static layout preview for Phase 1 UI verification. No external AI provider
-                is connected yet.
+                Sample layout preview thread. Switch to any conversation or start a new chat to
+                prompt EFER Brain.
               </span>
             </div>
           )}
@@ -648,7 +648,7 @@ export function ThreadView({
                   >
                     <Info className="w-4 h-4 text-warning mt-0.5 shrink-0" aria-hidden="true" />
                     <div className="space-y-1">
-                      <p className="font-medium text-text-primary">Phase 1 — Local State Only</p>
+                      <p className="font-medium text-text-primary">Workspace Notice</p>
                       <p className="text-text-secondary">
                         {highlightTextNodes(message.content, activeHighlightQuery, message.id)}
                       </p>

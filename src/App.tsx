@@ -101,11 +101,11 @@ export function App() {
 
   const headerSubtitle =
     store.activeView.kind === 'activity'
-      ? 'Phase 3 · Routing Traces'
+      ? 'Routing Traces'
       : store.activeView.kind === 'settings'
-        ? 'Phase 4 · Providers & Fallback'
+        ? 'Providers & Fallback'
         : store.activeView.kind === 'memory'
-          ? 'Phase 5 · User-Owned Context'
+          ? 'User-Owned Context'
           : store.activeView.kind === 'planned-capability'
             ? store.activeCapability.phaseLabel
             : store.activeView.kind === 'planned-section' && store.activePlannedSection

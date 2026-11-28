@@ -6,6 +6,39 @@ import { fileURLToPath } from 'node:url';
 const DEFAULT_PORT = Number(process.env.PORT) || 3000;
 const DEFAULT_HOST = '0.0.0.0';
 const MAX_CHAT_BODY_BYTES = 1_048_576; // 1 MB
+const MAX_CHAT_MESSAGES = 64;
+const MAX_MESSAGE_CHARS = 64_000;
+const MAX_TOTAL_CHARS = 200_000;
+const DEFAULT_RATE_LIMIT_MAX = 30;
+const DEFAULT_RATE_LIMIT_WINDOW_MS = 60_000;
+const UPSTREAM_TIMEOUT_MS = 45_000;
+
+const ALLOWED_PROXY_MODELS = new Set([
+  'proxy:gemini-flash',
+  'proxy:groq-llama',
+  'proxy:openrouter',
+]);
+
+const CONTENT_SECURITY_POLICY = [
+  "default-src 'self'",
+  "script-src 'self'",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' blob: data:",
+  "font-src 'self'",
+  "connect-src 'self' http://localhost:* http://127.0.0.1:* https://localhost:*",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+].join('; ');
+
+const SECURITY_HEADERS = {
+  'Content-Security-Policy': CONTENT_SECURITY_POLICY,
+  'X-Content-Type-Options': 'nosniff',
+  'X-Frame-Options': 'SAMEORIGIN',
+  'Referrer-Policy': 'no-referrer',
+  'Permissions-Policy': 'camera=(self), microphone=(self), geolocation=(), payment=(), usb=()',
+  'Cross-Origin-Opener-Policy': 'same-origin',
+};
 
 const MIME_TYPES = {
   '.html': 'text/html; charset=utf-8',
@@ -23,7 +56,6 @@ const MIME_TYPES = {
   '.ttf': 'font/ttf',
   '.ico': 'image/x-icon',
   '.txt': 'text/plain; charset=utf-8',
-  '.map': 'application/json; charset=utf-8',
 };
 
 function getMimeType(filePath) {
@@ -41,22 +73,103 @@ function getCacheControl(relativePath, ext) {
   return 'public, max-age=3600';
 }
 
-async function fileExists(targetPath) {
+function withSecurityHeaders(req, headers = {}) {
+  const merged = {
+    ...SECURITY_HEADERS,
+    ...headers,
+  };
+  if (req?.headers?.['x-forwarded-proto'] === 'https') {
+    merged['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains';
+  }
+  return merged;
+}
+
+function hasHiddenPathSegment(relativePath) {
+  return relativePath
+    .split(/[\\/]+/)
+    .some((segment) => segment.startsWith('.'));
+}
+
+async function resolveSafeStaticFile(realDistDir, candidatePath) {
   try {
-    const stat = await fs.stat(targetPath);
-    return stat.isFile();
+    const realCandidate = await fs.realpath(candidatePath);
+    if (
+      realCandidate !== realDistDir &&
+      !realCandidate.startsWith(`${realDistDir}${path.sep}`)
+    ) {
+      return null;
+    }
+    const stat = await fs.stat(realCandidate);
+    return stat.isFile() ? realCandidate : null;
+  } catch {
+    return null;
+  }
+}
+
+function sendJsonError(req, res, statusCode, message, extraHeaders = {}) {
+  res.writeHead(
+    statusCode,
+    withSecurityHeaders(req, {
+      'Content-Type': 'application/json; charset=utf-8',
+      'Cache-Control': 'no-store, private',
+      ...extraHeaders,
+    }),
+  );
+  res.end(JSON.stringify({ error: message }));
+}
+
+function isAllowedSameOrigin(req) {
+  const originHeader = req.headers.origin;
+  if (!originHeader) {
+    return true;
+  }
+  try {
+    const originUrl = new URL(originHeader);
+    const forwardedHost = req.headers['x-forwarded-host'];
+    const hostHeader = Array.isArray(forwardedHost)
+      ? forwardedHost[0]
+      : forwardedHost ?? req.headers.host;
+    if (!hostHeader) {
+      return false;
+    }
+    return originUrl.host === hostHeader.split(',')[0].trim();
   } catch {
     return false;
   }
 }
 
-function sendJsonError(res, statusCode, message) {
-  res.writeHead(statusCode, {
-    'Content-Type': 'application/json; charset=utf-8',
-    'Cache-Control': 'no-store',
-    'X-Content-Type-Options': 'nosniff',
-  });
-  res.end(JSON.stringify({ error: message }));
+function getClientIp(req) {
+  const socketIp = req.socket?.remoteAddress ?? 'unknown';
+  return socketIp;
+}
+
+function createRateLimiter(maxRequests, windowMs) {
+  const buckets = new Map();
+
+  return (clientKey) => {
+    const now = Date.now();
+    const cutoff = now - windowMs;
+    const recent = (buckets.get(clientKey) ?? []).filter((ts) => ts > cutoff);
+
+    if (recent.length >= maxRequests) {
+      buckets.set(clientKey, recent);
+      const retryAfterSec = Math.max(1, Math.ceil((recent[0] + windowMs - now) / 1000));
+      return { allowed: false, retryAfterSec };
+    }
+
+    recent.push(now);
+    buckets.set(clientKey, recent);
+
+    if (buckets.size > 1000) {
+      for (const [key, timestamps] of buckets.entries()) {
+        if (timestamps.every((ts) => ts <= cutoff)) {
+          buckets.delete(key);
+        }
+      }
+    }
+
+    return { allowed: true, retryAfterSec: 0 };
+  };
 }
 
 async function readJsonBody(req, maxBytes = MAX_CHAT_BODY_BYTES) {
@@ -85,21 +198,56 @@ async function readJsonBody(req, maxBytes = MAX_CHAT_BODY_BYTES) {
 
 function normalizeIncomingMessages(rawMessages) {
   if (!Array.isArray(rawMessages) || rawMessages.length === 0) {
-    return [];
+    return { error: 'Non-empty messages array is required.', messages: [] };
   }
-  return rawMessages
-    .filter(
-      (msg) =>
-        msg &&
-        typeof msg === 'object' &&
-        (msg.role === 'system' || msg.role === 'user' || msg.role === 'assistant') &&
-        typeof msg.content === 'string' &&
-        msg.content.trim().length > 0,
-    )
-    .map((msg) => ({
+  if (rawMessages.length > MAX_CHAT_MESSAGES) {
+    return {
+      error: `Messages array exceeds limit (${MAX_CHAT_MESSAGES} items).`,
+      messages: [],
+    };
+  }
+
+  const normalized = [];
+  let totalChars = 0;
+
+  for (const msg of rawMessages) {
+    if (
+      !msg ||
+      typeof msg !== 'object' ||
+      (msg.role !== 'system' && msg.role !== 'user' && msg.role !== 'assistant') ||
+      typeof msg.content !== 'string'
+    ) {
+      continue;
+    }
+
+    const trimmed = msg.content.trim();
+    if (!trimmed) continue;
+    if (msg.content.length > MAX_MESSAGE_CHARS) {
+      return {
+        error: `Individual message exceeds ${MAX_MESSAGE_CHARS} characters.`,
+        messages: [],
+      };
+    }
+
+    totalChars += msg.content.length;
+    if (totalChars > MAX_TOTAL_CHARS) {
+      return {
+        error: `Combined prompt payload exceeds ${MAX_TOTAL_CHARS} characters.`,
+        messages: [],
+      };
+    }
+
+    normalized.push({
       role: msg.role,
       content: msg.content,
-    }));
+    });
+  }
+
+  if (normalized.length === 0) {
+    return { error: 'At least one valid non-empty message is required.', messages: [] };
+  }
+
+  return { error: null, messages: normalized };
 }
 
 function writeSseText(res, text) {
@@ -107,26 +255,30 @@ function writeSseText(res, text) {
   res.write(`data: ${JSON.stringify({ text })}\n\n`);
 }
 
-async function forwardOpenAiCompatibleStream(upstreamRes, res) {
+async function forwardOpenAiCompatibleStream(upstreamRes, req, res) {
   const contentType = upstreamRes.headers.get('content-type') ?? '';
   if (!upstreamRes.body || contentType.includes('application/json')) {
     const data = await upstreamRes.json();
     const text = data?.choices?.[0]?.message?.content ?? '';
-    res.writeHead(200, {
-      'Content-Type': 'application/json; charset=utf-8',
-      'Cache-Control': 'no-store',
-      'X-Content-Type-Options': 'nosniff',
-    });
+    res.writeHead(
+      200,
+      withSecurityHeaders(req, {
+        'Content-Type': 'application/json; charset=utf-8',
+        'Cache-Control': 'no-store, private',
+      }),
+    );
     res.end(JSON.stringify({ text }));
     return;
   }
 
-  res.writeHead(200, {
-    'Content-Type': 'text/event-stream; charset=utf-8',
-    'Cache-Control': 'no-store',
-    Connection: 'keep-alive',
-    'X-Content-Type-Options': 'nosniff',
-  });
+  res.writeHead(
+    200,
+    withSecurityHeaders(req, {
+      'Content-Type': 'text/event-stream; charset=utf-8',
+      'Cache-Control': 'no-store, private',
+      Connection: 'keep-alive',
+    }),
+  );
 
   const reader = upstreamRes.body.getReader();
   const decoder = new TextDecoder();
@@ -166,27 +318,31 @@ async function forwardOpenAiCompatibleStream(upstreamRes, res) {
   res.end();
 }
 
-async function forwardGeminiStream(upstreamRes, res) {
+async function forwardGeminiStream(upstreamRes, req, res) {
   const contentType = upstreamRes.headers.get('content-type') ?? '';
   if (!upstreamRes.body || contentType.includes('application/json')) {
     const data = await upstreamRes.json();
     const parts = data?.candidates?.[0]?.content?.parts ?? [];
     const text = parts.map((p) => p?.text ?? '').join('');
-    res.writeHead(200, {
-      'Content-Type': 'application/json; charset=utf-8',
-      'Cache-Control': 'no-store',
-      'X-Content-Type-Options': 'nosniff',
-    });
+    res.writeHead(
+      200,
+      withSecurityHeaders(req, {
+        'Content-Type': 'application/json; charset=utf-8',
+        'Cache-Control': 'no-store, private',
+      }),
+    );
     res.end(JSON.stringify({ text }));
     return;
   }
 
-  res.writeHead(200, {
-    'Content-Type': 'text/event-stream; charset=utf-8',
-    'Cache-Control': 'no-store',
-    Connection: 'keep-alive',
-    'X-Content-Type-Options': 'nosniff',
-  });
+  res.writeHead(
+    200,
+    withSecurityHeaders(req, {
+      'Content-Type': 'text/event-stream; charset=utf-8',
+      'Cache-Control': 'no-store, private',
+      Connection: 'keep-alive',
+    }),
+  );
 
   const reader = upstreamRes.body.getReader();
   const decoder = new TextDecoder();
@@ -226,25 +382,54 @@ async function forwardGeminiStream(upstreamRes, res) {
   res.end();
 }
 
-async function handleProxyChat(req, res, fetchImpl) {
+async function handleProxyChat(req, res, fetchImpl, checkRateLimit) {
+  if (!isAllowedSameOrigin(req)) {
+    sendJsonError(req, res, 403, 'Cross-origin API requests are not permitted.');
+    return;
+  }
+
+  const contentType = String(req.headers['content-type'] ?? '').toLowerCase();
+  if (!contentType.startsWith('application/json')) {
+    sendJsonError(req, res, 415, 'Content-Type must be application/json.');
+    return;
+  }
+
+  const rateResult = checkRateLimit(getClientIp(req));
+  if (!rateResult.allowed) {
+    sendJsonError(
+      req,
+      res,
+      429,
+      'Rate limit exceeded. Please wait before sending another request.',
+      { 'Retry-After': String(rateResult.retryAfterSec) },
+    );
+    return;
+  }
+
   let body;
   try {
     body = await readJsonBody(req);
   } catch (err) {
-    sendJsonError(res, err?.statusCode ?? 400, err?.message ?? 'Invalid request body.');
+    sendJsonError(req, res, err?.statusCode ?? 400, err?.message ?? 'Invalid request body.');
     return;
   }
 
   const modelId = typeof body?.modelId === 'string' ? body.modelId.trim() : '';
-  const messages = normalizeIncomingMessages(body?.messages);
+  if (!ALLOWED_PROXY_MODELS.has(modelId)) {
+    sendJsonError(req, res, 400, 'Unsupported or invalid model identifier.');
+    return;
+  }
 
-  if (!modelId.startsWith('proxy:') || messages.length === 0) {
-    sendJsonError(res, 400, 'Valid proxy modelId and non-empty messages array are required.');
+  const { error: msgError, messages } = normalizeIncomingMessages(body?.messages);
+  if (msgError) {
+    sendJsonError(req, res, 400, msgError);
     return;
   }
 
   const controller = new AbortController();
+  const timeoutTimer = setTimeout(() => controller.abort(), UPSTREAM_TIMEOUT_MS);
   req.on('close', () => {
+    clearTimeout(timeoutTimer);
     if (!res.writableEnded) {
       controller.abort();
     }
@@ -254,7 +439,7 @@ async function handleProxyChat(req, res, fetchImpl) {
     if (modelId === 'proxy:gemini-flash') {
       const apiKey = process.env.GEMINI_API_KEY;
       if (!apiKey) {
-        sendJsonError(res, 503, 'GEMINI_API_KEY is not configured on the server.');
+        sendJsonError(req, res, 503, 'GEMINI_API_KEY is not configured on the server.');
         return;
       }
 
@@ -287,11 +472,11 @@ async function handleProxyChat(req, res, fetchImpl) {
       );
 
       if (!upstreamRes.ok) {
-        sendJsonError(res, upstreamRes.status, `Upstream Gemini proxy HTTP ${upstreamRes.status}.`);
+        sendJsonError(req, res, upstreamRes.status, `Upstream provider HTTP ${upstreamRes.status}.`);
         return;
       }
 
-      await forwardGeminiStream(upstreamRes, res);
+      await forwardGeminiStream(upstreamRes, req, res);
       return;
     }
 
@@ -301,7 +486,7 @@ async function handleProxyChat(req, res, fetchImpl) {
       const envName = isGroq ? 'GROQ_API_KEY' : 'OPENROUTER_API_KEY';
 
       if (!apiKey) {
-        sendJsonError(res, 503, `${envName} is not configured on the server.`);
+        sendJsonError(req, res, 503, `${envName} is not configured on the server.`);
         return;
       }
 
@@ -326,28 +511,29 @@ async function handleProxyChat(req, res, fetchImpl) {
 
       if (!upstreamRes.ok) {
         sendJsonError(
+          req,
           res,
           upstreamRes.status,
-          `Upstream ${isGroq ? 'Groq' : 'OpenRouter'} proxy HTTP ${upstreamRes.status}.`,
+          `Upstream provider HTTP ${upstreamRes.status}.`,
         );
         return;
       }
 
-      await forwardOpenAiCompatibleStream(upstreamRes, res);
+      await forwardOpenAiCompatibleStream(upstreamRes, req, res);
       return;
     }
-
-    sendJsonError(res, 400, `Unsupported proxy model "${modelId}".`);
   } catch (err) {
     if (err?.name === 'AbortError' || controller.signal.aborted) {
       if (!res.writableEnded) res.end();
       return;
     }
     if (!res.headersSent) {
-      sendJsonError(res, 502, 'Upstream AI provider request failed.');
+      sendJsonError(req, res, 502, 'Upstream AI provider request failed.');
     } else if (!res.writableEnded) {
       res.end();
     }
+  } finally {
+    clearTimeout(timeoutTimer);
   }
 }
 
@@ -358,6 +544,10 @@ export function createProductionServer(
   const resolvedDistDir = path.resolve(distDir);
   const indexHtmlPath = path.join(resolvedDistDir, 'index.html');
   const fetchImpl = options.fetchImpl ?? fetch;
+  const checkRateLimit = createRateLimiter(
+    options.rateLimitMax ?? DEFAULT_RATE_LIMIT_MAX,
+    options.rateLimitWindowMs ?? DEFAULT_RATE_LIMIT_WINDOW_MS,
+  );
 
   return http.createServer(async (req, res) => {
     const method = req.method ?? 'GET';
@@ -368,21 +558,43 @@ export function createProductionServer(
       const parsed = new URL(rawUrl, 'http://localhost');
       pathname = decodeURIComponent(parsed.pathname);
     } catch {
-      res.writeHead(400, {
-        'Content-Type': 'text/plain; charset=utf-8',
-        'X-Content-Type-Options': 'nosniff',
-      });
+      res.writeHead(
+        400,
+        withSecurityHeaders(req, {
+          'Content-Type': 'text/plain; charset=utf-8',
+        }),
+      );
       res.end('Bad Request');
       return;
     }
 
+    if (pathname.includes('\0')) {
+      res.writeHead(
+        400,
+        withSecurityHeaders(req, {
+          'Content-Type': 'text/plain; charset=utf-8',
+        }),
+      );
+      res.end('Bad Request');
+      return;
+    }
+
+    let realDistDir = resolvedDistDir;
+    try {
+      realDistDir = await fs.realpath(resolvedDistDir);
+    } catch {
+      realDistDir = resolvedDistDir;
+    }
+
     if (pathname === '/health') {
-      const buildReady = await fileExists(indexHtmlPath);
-      res.writeHead(200, {
-        'Content-Type': 'application/json; charset=utf-8',
-        'Cache-Control': 'no-store',
-        'X-Content-Type-Options': 'nosniff',
-      });
+      const buildReady = (await resolveSafeStaticFile(realDistDir, indexHtmlPath)) !== null;
+      res.writeHead(
+        200,
+        withSecurityHeaders(req, {
+          'Content-Type': 'application/json; charset=utf-8',
+          'Cache-Control': 'no-store, private',
+        }),
+      );
       res.end(JSON.stringify({ status: 'ok', buildReady }));
       return;
     }
@@ -396,74 +608,96 @@ export function createProductionServer(
         },
         note: 'API keys remain strictly server-side.',
       });
-      res.writeHead(200, {
-        'Content-Type': 'application/json; charset=utf-8',
-        'Cache-Control': 'no-store',
-        'X-Content-Type-Options': 'nosniff',
-      });
+      res.writeHead(
+        200,
+        withSecurityHeaders(req, {
+          'Content-Type': 'application/json; charset=utf-8',
+          'Cache-Control': 'no-store, private',
+        }),
+      );
       res.end(method === 'HEAD' ? undefined : body);
       return;
     }
 
     if (pathname === '/api/chat' && method === 'POST') {
-      await handleProxyChat(req, res, fetchImpl);
+      await handleProxyChat(req, res, fetchImpl, checkRateLimit);
       return;
     }
 
     if (method !== 'GET' && method !== 'HEAD') {
-      res.writeHead(405, {
-        'Content-Type': 'text/plain; charset=utf-8',
-        Allow: 'GET, HEAD',
-        'X-Content-Type-Options': 'nosniff',
-      });
+      res.writeHead(
+        405,
+        withSecurityHeaders(req, {
+          'Content-Type': 'text/plain; charset=utf-8',
+          Allow: 'GET, HEAD',
+        }),
+      );
       res.end('Method Not Allowed');
       return;
     }
 
     const sanitizedRelative = pathname === '/' ? 'index.html' : pathname.replace(/^\/+/, '');
-    const candidatePath = path.resolve(resolvedDistDir, sanitizedRelative);
-
-    if (
-      candidatePath !== resolvedDistDir &&
-      !candidatePath.startsWith(`${resolvedDistDir}${path.sep}`)
-    ) {
-      res.writeHead(403, {
-        'Content-Type': 'text/plain; charset=utf-8',
-        'X-Content-Type-Options': 'nosniff',
-      });
+    if (hasHiddenPathSegment(sanitizedRelative)) {
+      res.writeHead(
+        403,
+        withSecurityHeaders(req, {
+          'Content-Type': 'text/plain; charset=utf-8',
+        }),
+      );
       res.end('Forbidden');
       return;
     }
 
-    let fileToServe = null;
+    const candidatePath = path.resolve(realDistDir, sanitizedRelative);
+
+    if (
+      candidatePath !== realDistDir &&
+      !candidatePath.startsWith(`${realDistDir}${path.sep}`)
+    ) {
+      res.writeHead(
+        403,
+        withSecurityHeaders(req, {
+          'Content-Type': 'text/plain; charset=utf-8',
+        }),
+      );
+      res.end('Forbidden');
+      return;
+    }
+
+    let fileToServe = await resolveSafeStaticFile(realDistDir, candidatePath);
     let servedRelativePath = sanitizedRelative;
 
-    if (await fileExists(candidatePath)) {
-      fileToServe = candidatePath;
-    } else {
+    if (!fileToServe) {
       const hasExtension = path.extname(sanitizedRelative) !== '';
-      if (!hasExtension && (await fileExists(indexHtmlPath))) {
-        fileToServe = indexHtmlPath;
-        servedRelativePath = 'index.html';
+      if (!hasExtension) {
+        const spaIndex = await resolveSafeStaticFile(realDistDir, indexHtmlPath);
+        if (spaIndex) {
+          fileToServe = spaIndex;
+          servedRelativePath = 'index.html';
+        }
       }
     }
 
     if (!fileToServe) {
-      const hasBuild = await fileExists(indexHtmlPath);
+      const hasBuild = (await resolveSafeStaticFile(realDistDir, indexHtmlPath)) !== null;
       if (!hasBuild) {
-        res.writeHead(503, {
-          'Content-Type': 'text/plain; charset=utf-8',
-          'Cache-Control': 'no-store',
-          'X-Content-Type-Options': 'nosniff',
-        });
+        res.writeHead(
+          503,
+          withSecurityHeaders(req, {
+            'Content-Type': 'text/plain; charset=utf-8',
+            'Cache-Control': 'no-store',
+          }),
+        );
         res.end('Production build not found in dist/. Run "npm run build" before starting.');
         return;
       }
 
-      res.writeHead(404, {
-        'Content-Type': 'text/plain; charset=utf-8',
-        'X-Content-Type-Options': 'nosniff',
-      });
+      res.writeHead(
+        404,
+        withSecurityHeaders(req, {
+          'Content-Type': 'text/plain; charset=utf-8',
+        }),
+      );
       res.end('Not Found');
       return;
     }
@@ -471,22 +705,26 @@ export function createProductionServer(
     try {
       const data = await fs.readFile(fileToServe);
       const ext = path.extname(fileToServe).toLowerCase();
-      res.writeHead(200, {
-        'Content-Type': getMimeType(fileToServe),
-        'Content-Length': data.byteLength,
-        'Cache-Control': getCacheControl(servedRelativePath, ext),
-        'X-Content-Type-Options': 'nosniff',
-      });
+      res.writeHead(
+        200,
+        withSecurityHeaders(req, {
+          'Content-Type': getMimeType(fileToServe),
+          'Content-Length': data.byteLength,
+          'Cache-Control': getCacheControl(servedRelativePath, ext),
+        }),
+      );
       if (method === 'HEAD') {
         res.end();
       } else {
         res.end(data);
       }
     } catch {
-      res.writeHead(500, {
-        'Content-Type': 'text/plain; charset=utf-8',
-        'X-Content-Type-Options': 'nosniff',
-      });
+      res.writeHead(
+        500,
+        withSecurityHeaders(req, {
+          'Content-Type': 'text/plain; charset=utf-8',
+        }),
+      );
       res.end('Internal Server Error');
     }
   });
@@ -498,6 +736,6 @@ const isExecutedDirectly =
 if (isExecutedDirectly) {
   const server = createProductionServer();
   server.listen(DEFAULT_PORT, DEFAULT_HOST, () => {
-    console.log(`EFER AI production server listening on http://${DEFAULT_HOST}:${DEFAULT_PORT}`);
+    console.log(`EFER AI server listening on http://${DEFAULT_HOST}:${DEFAULT_PORT}`);
   });
 }

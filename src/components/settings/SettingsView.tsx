@@ -110,7 +110,7 @@ export function SettingsView({
           <div className="space-y-1">
             <div className="inline-flex items-center gap-2 text-xs font-mono text-text-secondary">
               <Settings className="w-3.5 h-3.5 text-accent" aria-hidden="true" />
-              <span>Phase 4 · Providers &amp; Fallback</span>
+              <span>Providers &amp; Fallback</span>
             </div>
             <h2 className="text-xl sm:text-2xl font-semibold text-text-primary tracking-tight">
               Settings &amp; Providers
@@ -458,7 +458,7 @@ export function SettingsView({
                   {ggufPlanned.displayName}
                 </span>
                 <span aria-hidden="true">·</span>
-                <span className="font-mono">Planned · Phase 5+</span>
+                <span className="font-mono">Roadmap</span>
               </div>
               <p className="text-xs text-text-secondary">{ggufPlanned.shortDescription}</p>
             </div>

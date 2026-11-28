@@ -101,4 +101,30 @@ describe('EFER Memory store and context isolation', () => {
     expect(ctx[1].content).toContain('[Attached File: notes.md');
     expect(ctx[1].content).toContain('Alpha Beta');
   });
+
+  it('rejects oversized localStorage payloads and strips control characters', () => {
+    const tainted = JSON.stringify([
+      {
+        id: 'm-clean',
+        category: 'fact',
+        content: 'Safe\u0000 note',
+        createdAt: '10:00 AM',
+        updatedAt: '10:00 AM',
+      },
+      {
+        id: 'm-toolong',
+        category: 'fact',
+        content: 'x'.repeat(700),
+        createdAt: '10:00 AM',
+        updatedAt: '10:00 AM',
+      },
+    ]);
+    localStorage.setItem(MEMORY_STORAGE_KEY, tainted);
+    const loaded = loadMemoriesFromStorage();
+    expect(loaded).toHaveLength(1);
+    expect(loaded[0].content).toBe('Safe note');
+
+    localStorage.setItem(MEMORY_STORAGE_KEY, 'x'.repeat(300_000));
+    expect(loadMemoriesFromStorage()).toEqual([]);
+  });
 });

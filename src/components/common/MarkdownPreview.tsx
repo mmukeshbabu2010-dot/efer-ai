@@ -96,8 +96,15 @@ export function highlightTextNodes(
 }
 
 function isSafeHttpUrl(rawUrl: string): boolean {
+  const trimmed = rawUrl.trim();
+  if (!trimmed || /[\u0000-\u001f\u007f]/.test(trimmed)) {
+    return false;
+  }
   try {
-    const parsed = new URL(rawUrl);
+    const parsed = new URL(trimmed);
+    if (parsed.username || parsed.password) {
+      return false;
+    }
     return parsed.protocol === 'https:' || parsed.protocol === 'http:';
   } catch {
     return false;
@@ -156,9 +163,10 @@ function renderInlineMarkdown(
         nodes.push(
           <a
             key={key}
-            href={linkMatch[2]}
+            href={linkMatch[2].trim()}
             target="_blank"
-            rel="noopener noreferrer"
+            rel="noopener noreferrer nofollow"
+            referrerPolicy="no-referrer"
             className="text-accent underline underline-offset-2 hover:opacity-80"
           >
             {highlightTextNodes(linkMatch[1], highlightQuery, `${key}-a`)}

@@ -87,7 +87,11 @@ describe('production static & SPA server', () => {
     try {
       const res = await fetch(`${baseUrl}/api/providers`);
       expect(res.status).toBe(200);
-      expect(res.headers.get('cache-control')).toBe('no-store');
+      expect(res.headers.get('cache-control')).toContain('no-store');
+      expect(res.headers.get('content-security-policy')).toContain("script-src 'self'");
+      expect(res.headers.get('x-content-type-options')).toBe('nosniff');
+      expect(res.headers.get('referrer-policy')).toBe('no-referrer');
+      expect(res.headers.get('x-frame-options')).toBe('SAMEORIGIN');
       const rawText = await res.text();
       expect(rawText).not.toContain('AIza-secret-should-never-appear-in-response');
       const parsed = JSON.parse(rawText) as {
@@ -192,6 +196,66 @@ describe('production static & SPA server', () => {
       await new Promise<void>((resolve) => proxyServer.close(() => resolve()));
       if (prevKey === undefined) delete process.env.GEMINI_API_KEY;
       else process.env.GEMINI_API_KEY = prevKey;
+    }
+  });
+
+  it('enforces same-origin CSRF checks, JSON Content-Type, hidden dotfile blocking, and /api/chat rate limits', async () => {
+    await fs.writeFile(path.join(distDir, '.env'), 'SECRET=should_never_be_served');
+    const dotfileRes = await fetch(`${baseUrl}/.env`);
+    expect(dotfileRes.status).toBe(403);
+
+    const wrongTypeRes = await fetch(`${baseUrl}/api/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: 'not json',
+    });
+    expect(wrongTypeRes.status).toBe(415);
+
+    const csrfRes = await fetch(`${baseUrl}/api/chat`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Origin: 'https://evil-attacker.example',
+      },
+      body: JSON.stringify({
+        modelId: 'proxy:gemini-flash',
+        messages: [{ role: 'user', content: 'hi' }],
+      }),
+    });
+    expect(csrfRes.status).toBe(403);
+
+    const limitedServer = createProductionServer(distDir, {
+      rateLimitMax: 2,
+      rateLimitWindowMs: 60_000,
+    });
+    await new Promise<void>((resolve) => {
+      limitedServer.listen(0, '127.0.0.1', () => resolve());
+    });
+    const addr = limitedServer.address() as AddressInfo;
+    const limitedUrl = `http://127.0.0.1:${addr.port}`;
+
+    try {
+      for (let i = 0; i < 2; i += 1) {
+        const res = await fetch(`${limitedUrl}/api/chat`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ modelId: 'invalid', messages: [] }),
+        });
+        expect(res.status).toBe(400);
+      }
+
+      const throttledRes = await fetch(`${limitedUrl}/api/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          modelId: 'proxy:gemini-flash',
+          messages: [{ role: 'user', content: 'flood' }],
+        }),
+      });
+      expect(throttledRes.status).toBe(429);
+      expect(Number(throttledRes.headers.get('retry-after'))).toBeGreaterThanOrEqual(1);
+    } finally {
+      await new Promise<void>((resolve) => limitedServer.close(() => resolve()));
     }
   });
 });

@@ -82,7 +82,7 @@ export function ActivityLogView({
           <div className="space-y-1">
             <div className="inline-flex items-center gap-2 text-xs font-mono text-text-secondary">
               <Activity className="w-3.5 h-3.5 text-accent" aria-hidden="true" />
-              <span>Phase 3 · EFER Brain Telemetry</span>
+              <span>EFER Brain · Routing Telemetry</span>
             </div>
             <h2 className="text-xl sm:text-2xl font-semibold text-text-primary tracking-tight">
               Activity Log

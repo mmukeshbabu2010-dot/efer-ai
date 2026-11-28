@@ -152,12 +152,19 @@ const SECRET_PATTERN_RULES: SecretPatternRule[] = [
     replaceValue: () => '[REDACTED PRIVATE KEY]',
   },
   {
+    id: 'aws-access-key',
+    label: 'AWS Access Key (AKIA...)',
+    testRegex: /\bAKIA[0-9A-Z]{16}\b/,
+    redactRegex: /\bAKIA[0-9A-Z]{16}\b/g,
+    replaceValue: () => '[REDACTED]',
+  },
+  {
     id: 'password-or-secret',
     label: 'Password or Credential Assignment',
     testRegex:
-      /(?:^|[\s,{'"`])(?:password|passwd|pwd|passphrase|secret[_-]?key|api[_-]?key|access[_-]?token)\s*(?:=|:|\bis\b)\s*(['"]?)(?!\[REDACTED\])[^\s,'"`}{]{4,}\1/i,
+      /(?:^|[\s,{'"`])(?:password|passwd|pwd|passphrase|secret[_-]?key|api[_-]?key|x-goog-api-key|access[_-]?token)\s*(?:=|:|\bis\b)\s*(['"]?)(?!\[REDACTED\])[^\s,'"`}{]{4,}\1/i,
     redactRegex:
-      /((?:^|[\s,{'"`])(?:password|passwd|pwd|passphrase|secret[_-]?key|api[_-]?key|access[_-]?token)\s*(?:=|:|\bis\b)\s*['"]?)(?!\[REDACTED\])([^\s,'"`}{]{4,})(['"]?)/gi,
+      /((?:^|[\s,{'"`])(?:password|passwd|pwd|passphrase|secret[_-]?key|api[_-]?key|x-goog-api-key|access[_-]?token)\s*(?:=|:|\bis\b)\s*['"]?)(?!\[REDACTED\])([^\s,'"`}{]{4,})(['"]?)/gi,
     replaceValue: (_full, prefix, _secret, closingQuote) =>
       `${prefix}[REDACTED]${closingQuote ?? ''}`,
   },

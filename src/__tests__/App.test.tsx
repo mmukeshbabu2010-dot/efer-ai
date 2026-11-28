@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { App } from '../App';
@@ -152,7 +152,7 @@ describe('EFER AI App integration', () => {
     await waitFor(
       () => {
         expect(
-          within(screen.getByRole('main')).getByText(/Processed your prompt in local Phase 2 demo mode/i),
+          within(screen.getByRole('main')).getByText(/Processed your prompt in local Demo mode/i),
         ).toBeInTheDocument();
       },
       { timeout: 3000 },
@@ -176,7 +176,7 @@ describe('EFER AI App integration', () => {
     await waitFor(
       () => {
         expect(
-          within(screen.getByRole('main')).getByText(/Processed your prompt in local Phase 2 demo mode/i),
+          within(screen.getByRole('main')).getByText(/Processed your prompt in local Demo mode/i),
         ).toBeInTheDocument();
         expect(screen.queryByRole('button', { name: 'Stop generation' })).not.toBeInTheDocument();
       },
@@ -285,5 +285,25 @@ describe('EFER AI App integration', () => {
       expect(within(main).getByText(/Please review the attached file\(s\): notes\.txt/i)).toBeInTheDocument();
       expect(within(main).getByText('notes.txt')).toBeInTheDocument();
     });
+  });
+
+  it('blocks unsafe javascript: links and credentialed URLs inside Markdown preview', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    const input = screen.getByPlaceholderText('Ask anything...');
+    fireEvent.change(input, {
+      target: {
+        value:
+          '[Click XSS](javascript:alert(1)) and [Creds](https://user:pass@example.com) and [Safe](https://example.com)',
+      },
+    });
+    await user.click(screen.getByRole('tab', { name: 'Preview' }));
+
+    expect(screen.queryByRole('link', { name: 'Click XSS' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Creds' })).not.toBeInTheDocument();
+    const safeLink = screen.getByRole('link', { name: 'Safe' });
+    expect(safeLink).toHaveAttribute('href', 'https://example.com');
+    expect(safeLink).toHaveAttribute('rel', 'noopener noreferrer nofollow');
   });
 });
