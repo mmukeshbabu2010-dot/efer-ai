@@ -17,6 +17,11 @@ export function normalizeOllamaBaseUrl(rawUrl: string): string {
   if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
     throw new Error('Ollama endpoint must use http: or https:.');
   }
+  const hostname = parsed.hostname.toLowerCase();
+  const isLoopback = hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '[::1]' || hostname === '::1';
+  if (parsed.protocol === 'http:' && !isLoopback) {
+    throw new Error('Remote Ollama endpoints must use HTTPS. HTTP is allowed only for localhost/loopback.');
+  }
   return parsed.toString().replace(/\/+$/, '');
 }
 

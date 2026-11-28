@@ -62,4 +62,14 @@ describe('FallbackCoordinator permission scope', () => {
     await expect(coordinator.resolveConsent(request(from, to, true), prompt)).resolves.toBe('allow-once');
     expect(prompt).toHaveBeenCalledTimes(1);
   });
+
+  it('does not reuse remembered Always Allow permission in Incognito within the same provider and privacy tier', async () => {
+    const coordinator = new FallbackCoordinator('always-allow');
+    const from = model('a', 'provider-a', 'local-device');
+    const to = model('b', 'provider-a', 'local-device');
+    const prompt = vi.fn().mockResolvedValue('allow-once');
+
+    await expect(coordinator.resolveConsent(request(from, to, true), prompt)).resolves.toBe('allow-once');
+    expect(prompt).toHaveBeenCalledTimes(1);
+  });
 });

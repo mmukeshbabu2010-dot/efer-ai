@@ -11,6 +11,7 @@ export type FallbackConsentPrompt = (
 
 function canUseRememberedPermission(request: FallbackConsentRequest): boolean {
   return (
+    !request.isIncognito &&
     request.fromModel.providerId === request.toModel.providerId &&
     request.fromModel.privacyTier === request.toModel.privacyTier
   );
