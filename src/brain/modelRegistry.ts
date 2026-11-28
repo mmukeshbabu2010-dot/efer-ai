@@ -62,8 +62,6 @@ export const INITIAL_MODEL_CATALOG: ModelDescriptor[] = [
     providerId: 'server-proxy',
     displayName: 'Server Proxy · Planned',
     shortDescription: 'Gemini API integration is deferred and unavailable in this project.',
-    displayName: 'Gemini 2.5 Flash (Server Proxy)',
-    shortDescription: 'Server-side /api/* proxy slot (requires GEMINI_API_KEY env var on server).',
     capabilities: {
       chat: true,
       streaming: true,
