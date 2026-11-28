@@ -98,30 +98,33 @@ export function Sidebar({
 
   const railContent = (
     <div className="flex flex-col h-full bg-rail text-text-primary">
-      <div className="flex items-center justify-between gap-2 px-4 py-3.5 border-b border-border">
+      <div className="flex items-center justify-between gap-2 px-4 pt-[max(12px,env(safe-area-inset-top))] pb-3 border-b border-border shrink-0">
         <EferWordmark size="lg" />
         <button
           type="button"
           onClick={onCloseMobile}
           aria-label="Close navigation menu"
-          className="md:hidden inline-flex items-center justify-center w-9 h-9 rounded-card text-text-secondary hover:text-text-primary hover:bg-card transition-colors focus-visible:outline-2 focus-visible:outline-accent"
+          className="md:hidden inline-flex items-center justify-center w-11 h-11 rounded-card text-text-secondary hover:text-text-primary hover:bg-card active:scale-[0.98] transition-all focus-visible:outline-2 focus-visible:outline-accent"
         >
-          <X className="w-4 h-4" aria-hidden="true" />
+          <X className="w-5 h-5" aria-hidden="true" />
         </button>
       </div>
 
-      <div className="p-3">
+      <div className="p-3 shrink-0">
         <button
           type="button"
           onClick={onNewThread}
-          className="w-full flex items-center justify-center gap-2 h-10 px-4 rounded-card bg-card border border-border text-sm font-medium text-text-primary hover:bg-accent-soft hover:border-accent transition-colors focus-visible:outline-2 focus-visible:outline-accent"
+          className="w-full flex items-center justify-center gap-2 h-11 md:h-10 px-4 rounded-card bg-card border border-border text-sm font-medium text-text-primary hover:bg-accent-soft hover:border-accent active:scale-[0.99] transition-all focus-visible:outline-2 focus-visible:outline-accent"
         >
           <SquarePen className="w-4 h-4 text-accent" aria-hidden="true" />
           <span>New conversation</span>
         </button>
       </div>
 
-      <nav aria-label="Workspace navigation" className="flex-1 overflow-y-auto px-3 pb-4 space-y-6">
+      <nav
+        aria-label="Workspace navigation"
+        className="flex-1 overflow-y-auto overscroll-contain px-3 pb-4 space-y-6"
+      >
         <div>
           <h2 className="px-2 pb-2 text-xs font-semibold text-text-secondary">
             Conversations
@@ -288,16 +291,18 @@ export function Sidebar({
       )}
 
       {isMobileOpen && (
-        <div className="md:hidden fixed inset-0 z-50 flex">
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Navigation menu"
+          className="md:hidden fixed inset-0 z-50 flex"
+        >
           <div
             className="fixed inset-0 bg-black/40"
             onClick={onCloseMobile}
             aria-hidden="true"
           />
-          <aside
-            aria-label="Mobile navigation drawer"
-            className="relative z-10 w-[288px] max-w-[85vw] h-full border-r border-border"
-          >
+          <aside className="relative z-10 w-[288px] max-w-[85vw] h-full border-r border-border shadow-xl">
             {railContent}
           </aside>
         </div>

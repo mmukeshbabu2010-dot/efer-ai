@@ -41,12 +41,17 @@ export interface StarterPrompt {
 
 export type MessageRole = 'user' | 'assistant' | 'notice';
 
+export const AI_REACTION_OPTIONS = ['👍', '❤️', '💡', '🎯'] as const;
+export type MessageReaction = (typeof AI_REACTION_OPTIONS)[number];
+
 export interface ChatMessage {
   id: string;
   role: MessageRole;
   content: string;
   timestamp: string;
+  reactions?: MessageReaction[];
   isPreviewSample?: boolean;
+  regenerationCount?: number;
 }
 
 export interface Conversation {

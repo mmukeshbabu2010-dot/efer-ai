@@ -9,6 +9,7 @@ import type {
   CapabilityId,
   ChatMessage,
   Conversation,
+  MessageReaction,
   PlannedSectionId,
   ThemeMode,
 } from '../types/workspace';
@@ -43,6 +44,7 @@ export function useWorkspaceStore() {
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [selectedStarterId, setSelectedStarterId] = useState<string | null>(null);
   const [composerFocusTick, setComposerFocusTick] = useState<number>(0);
+  const [isIncognito, setIsIncognito] = useState<boolean>(false);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -80,6 +82,10 @@ export function useWorkspaceStore() {
 
   const toggleTheme = useCallback(() => {
     setTheme((prev) => (prev === 'light' ? 'dark' : 'light'));
+  }, []);
+
+  const toggleIncognito = useCallback(() => {
+    setIsIncognito((prev) => !prev);
   }, []);
 
   const createNewThread = useCallback(() => {
@@ -247,6 +253,122 @@ export function useWorkspaceStore() {
     [activeConversationId, composerText],
   );
 
+  const toggleMessageReaction = useCallback(
+    (messageId: string, emoji: MessageReaction) => {
+      setConversations((prev) =>
+        prev.map((thread) => {
+          if (thread.id !== activeConversationId) return thread;
+          return {
+            ...thread,
+            messages: thread.messages.map((msg) => {
+              if (msg.id !== messageId) return msg;
+              const existing = msg.reactions ?? [];
+              const hasReaction = existing.includes(emoji);
+              const nextReactions = hasReaction
+                ? existing.filter((item) => item !== emoji)
+                : [...existing, emoji];
+              return {
+                ...msg,
+                reactions: nextReactions,
+              };
+            }),
+          };
+        }),
+      );
+    },
+    [activeConversationId],
+  );
+
+  const deleteMessage = useCallback(
+    (messageId: string) => {
+      const timestamp = formatCurrentTime();
+      setConversations((prev) =>
+        prev.map((thread) => {
+          if (thread.id !== activeConversationId) return thread;
+          return {
+            ...thread,
+            messages: thread.messages.filter((msg) => msg.id !== messageId),
+            updatedAt: timestamp,
+          };
+        }),
+      );
+    },
+    [activeConversationId],
+  );
+
+  const regenerateMessage = useCallback(
+    (messageId: string) => {
+      const timestamp = formatCurrentTime();
+      setConversations((prev) =>
+        prev.map((thread) => {
+          if (thread.id !== activeConversationId) return thread;
+          const targetIndex = thread.messages.findIndex((msg) => msg.id === messageId);
+          if (targetIndex === -1) return thread;
+
+          const targetMessage = thread.messages[targetIndex];
+          if (targetMessage.role === 'user') return thread;
+
+          const precedingUserMessage = [...thread.messages.slice(0, targetIndex)]
+            .reverse()
+            .find((msg) => msg.role === 'user');
+          const nextCount = (targetMessage.regenerationCount ?? 0) + 1;
+          const promptSnippet = precedingUserMessage
+            ? precedingUserMessage.content.trim().slice(0, 120)
+            : null;
+
+          let nextContent = targetMessage.content;
+
+          if (targetMessage.role === 'notice') {
+            nextContent = promptSnippet
+              ? `Regenerated Phase 1 local notice (pass #${nextCount}) for prompt "${promptSnippet}${
+                  precedingUserMessage && precedingUserMessage.content.trim().length > 120 ? '…' : ''
+                }". No AI provider is connected in Phase 1 — EFER Brain and the Demonstration Provider will be added in Phase 2.`
+              : `Regenerated Phase 1 local notice (pass #${nextCount}). No AI provider is connected in Phase 1 — EFER Brain and the Demonstration Provider will be added in Phase 2.`;
+          } else if (targetMessage.isPreviewSample) {
+            const sampleVariants = [
+              [
+                `Sample UI Preview (refreshed pass #${nextCount} · no external AI provider connected in Phase 1):`,
+                '',
+                '• **Event Horizon**: A black hole marks the boundary beyond which gravity prevents even light from escaping.',
+                '• **Formation**: Most stellar black holes form when massive stars collapse after exhausting nuclear fuel.',
+                '• **Observation**: Telescopes infer them from gravitational orbits, X-ray emissions from hot accretion disks, and gravitational waves.',
+              ].join('\n'),
+              [
+                `Sample UI Preview (refreshed pass #${nextCount} · no external AI provider connected in Phase 1):`,
+                '',
+                '• A black hole is a region in space where gravity is extremely strong — so strong that nothing, not even light, can escape it.',
+                '• They form when a massive star collapses at the end of its life.',
+                '• Astronomers detect them indirectly by observing how they affect nearby stars, gas, and light.',
+              ].join('\n'),
+            ];
+            nextContent = sampleVariants[(nextCount - 1) % sampleVariants.length];
+          } else {
+            nextContent = promptSnippet
+              ? `Phase 1 response placeholder refreshed (pass #${nextCount}) for "${promptSnippet}". Live AI regeneration connects via EFER Brain in Phase 2.`
+              : `Phase 1 response placeholder refreshed (pass #${nextCount}). Live AI regeneration connects via EFER Brain in Phase 2.`;
+          }
+
+          return {
+            ...thread,
+            updatedAt: timestamp,
+            messages: thread.messages.map((msg) =>
+              msg.id === messageId
+                ? {
+                    ...msg,
+                    content: nextContent,
+                    timestamp,
+                    reactions: [],
+                    regenerationCount: nextCount,
+                  }
+                : msg,
+            ),
+          };
+        }),
+      );
+    },
+    [activeConversationId],
+  );
+
   return {
     theme,
     setTheme,
@@ -270,6 +392,8 @@ export function useWorkspaceStore() {
     isSubmitting,
     selectedStarterId,
     composerFocusTick,
+    isIncognito,
+    toggleIncognito,
     createNewThread,
     selectThread,
     deleteThread,
@@ -278,5 +402,8 @@ export function useWorkspaceStore() {
     populateStarterPrompt,
     clearAndFocusComposer,
     sendMessage,
+    toggleMessageReaction,
+    deleteMessage,
+    regenerateMessage,
   };
 }
