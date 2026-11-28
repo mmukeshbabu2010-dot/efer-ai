@@ -13,6 +13,7 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 import type { ServerProxyStatus } from '../../brain/adapters/ServerProxyAdapter';
+import { isLocalOllamaEndpoint } from '../../brain/adapters/OllamaAdapter';
 import type {
   FallbackMode,
   ModelDescriptor,
@@ -82,13 +83,9 @@ export function SettingsView({
 
   const demoEnabled = isProviderActive(availableModels, 'mock-demo');
   const ollamaEnabled = isProviderActive(availableModels, 'local-ollama');
-  const proxyEnabled = isProviderActive(availableModels, 'server-proxy');
 
   const ollamaDescriptor = availableModels.find(
     (model) => model.providerId === 'local-ollama',
-  );
-  const proxyDescriptor = availableModels.find(
-    (model) => model.providerId === 'server-proxy',
   );
   const ggufPlanned = availableModels.find(
     (model) => model.providerId === 'local-gguf',
@@ -97,6 +94,11 @@ export function SettingsView({
   const handleSaveOllama = (event: React.FormEvent) => {
     event.preventDefault();
     setOllamaSavedNotice(null);
+    if (draftOllamaUrl.trim() && !isLocalOllamaEndpoint(draftOllamaUrl) && !window.confirm(
+      'This endpoint is not localhost. Prompts and conversation context will be sent over your network to that Ollama server. Continue only if you trust and control this endpoint.'
+    )) {
+      return;
+    }
     const result = onUpdateOllamaConfig(draftOllamaUrl, draftOllamaModel);
     if (result.ok) {
       setOllamaSavedNotice('Saved Ollama endpoint and local model name.');
@@ -141,8 +143,7 @@ export function SettingsView({
               EFER AI does not collect external AI API keys in the browser, does not persist
               secrets in browser storage, and does not ship a PIN-based browser key vault. Server
               proxy credentials stay strictly in backend environment variables
-              (<code className="font-mono text-text-primary">GEMINI_API_KEY</code>,{' '}
-              <code className="font-mono text-text-primary">GROQ_API_KEY</code>,{' '}
+              (<code className="font-mono text-text-primary">GROQ_API_KEY</code>,{' '}
               <code className="font-mono text-text-primary">OPENROUTER_API_KEY</code>).
             </p>
           </div>
@@ -215,7 +216,7 @@ export function SettingsView({
                 <p className="text-xs text-text-secondary leading-relaxed">
                   Connects directly from your browser to a local Ollama daemon over HTTP/HTTPS
                   (requires <code className="font-mono text-text-primary">OLLAMA_ORIGINS</code>{' '}
-                  CORS permission on the device running Ollama).
+                  CORS permission on the device running Ollama). Non-localhost endpoints send prompts over the network and require confirmation.
                 </p>
               </div>
 
@@ -362,29 +363,18 @@ export function SettingsView({
                   <span aria-hidden="true">·</span>
                   <span className="font-mono">server-proxy</span>
                   <span aria-hidden="true">·</span>
-                  <span>{proxyEnabled ? 'Enabled' : 'Disabled'}</span>
+                  <span>Planned · unavailable</span>
                 </div>
                 <p className="text-xs text-text-secondary leading-relaxed">
-                  Routes prompts through same-origin <code className="font-mono text-text-primary">/api/chat</code>{' '}
-                  when hosted with a backend server holding environment API keys. Static-only
-                  deployments report no backend without failing.
+                  Planned provider proxy. This build exposes a provider-status endpoint only;
+                  <code className="font-mono text-text-primary">/api/chat</code> is not implemented,
+                  so prompts are not routed through this provider yet.
                 </p>
               </div>
 
-              <button
-                type="button"
-                role="switch"
-                aria-checked={proxyEnabled}
-                aria-label="Enable Server Proxy"
-                onClick={() => onSetProviderEnabled('server-proxy', !proxyEnabled)}
-                className={`h-8 px-3 rounded-[10px] border text-xs font-medium whitespace-nowrap shrink-0 transition-colors focus-visible:outline-2 focus-visible:outline-accent ${
-                  proxyEnabled
-                    ? 'bg-accent-soft border-accent text-text-primary'
-                    : 'bg-card-subtle border-border text-text-secondary hover:text-text-primary'
-                }`}
-              >
-                {proxyEnabled ? 'Enabled' : 'Enable'}
-              </button>
+              <span className="h-8 inline-flex items-center px-3 rounded-[10px] border border-border bg-card-subtle text-xs font-medium text-text-secondary whitespace-nowrap shrink-0">
+                Planned · unavailable
+              </span>
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
@@ -403,15 +393,6 @@ export function SettingsView({
                 <span>{isCheckingProxy ? 'Checking…' : 'Check Proxy Status'}</span>
               </button>
 
-              {proxyEnabled && proxyDescriptor && (
-                <button
-                  type="button"
-                  onClick={() => onSelectModelAndReturn(proxyDescriptor.id)}
-                  className="inline-flex items-center gap-1.5 h-9 px-3 rounded-[10px] bg-accent-soft border border-accent text-xs font-medium text-text-primary hover:bg-accent hover:text-accent-text transition-colors whitespace-nowrap shrink-0 focus-visible:outline-2 focus-visible:outline-accent"
-                >
-                  <span>Use in Chat</span>
-                </button>
-              )}
             </div>
 
             {serverProxyStatus && (
@@ -435,9 +416,6 @@ export function SettingsView({
                   <span>{serverProxyStatus.detail}</span>
                 </div>
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1 pl-6 text-text-secondary font-mono">
-                  <span>
-                    Gemini: {serverProxyStatus.configured.gemini ? 'Configured' : 'Not set'}
-                  </span>
                   <span>
                     Groq: {serverProxyStatus.configured.groq ? 'Configured' : 'Not set'}
                   </span>
@@ -521,7 +499,7 @@ export function SettingsView({
             >
               <div className="text-xs font-semibold text-text-primary">Always allow</div>
               <p className="text-xs text-text-secondary leading-snug">
-                Automatically switch to the next eligible active model on failure.
+                Automatically switch only within the same provider and privacy boundary. Cross-provider or cross-boundary changes always require fresh consent. Incognito never switches providers.
               </p>
             </button>
           </div>

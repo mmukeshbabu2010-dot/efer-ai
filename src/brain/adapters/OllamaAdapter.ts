@@ -20,6 +20,15 @@ export function normalizeOllamaBaseUrl(rawUrl: string): string {
   return parsed.toString().replace(/\/+$/, '');
 }
 
+export function isLocalOllamaEndpoint(rawUrl: string): boolean {
+  try {
+    const hostname = new URL(normalizeOllamaBaseUrl(rawUrl)).hostname.toLowerCase();
+    return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '[::1]' || hostname === '::1';
+  } catch {
+    return false;
+  }
+}
+
 export class OllamaAdapter implements ProviderAdapter {
   readonly id = 'local-ollama';
   readonly displayName = 'Local Ollama';

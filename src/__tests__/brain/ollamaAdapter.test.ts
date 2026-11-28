@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
+  isLocalOllamaEndpoint,
   normalizeOllamaBaseUrl,
   OllamaAdapter,
 } from '../../brain/adapters/OllamaAdapter';
@@ -19,6 +20,10 @@ describe('OllamaAdapter', () => {
     expect(() => normalizeOllamaBaseUrl('ftp://localhost:11434')).toThrow(
       /http: or https:/i,
     );
+    expect(isLocalOllamaEndpoint('http://localhost:11434')).toBe(true);
+    expect(isLocalOllamaEndpoint('http://127.0.0.1:11434')).toBe(true);
+    expect(isLocalOllamaEndpoint('http://192.168.1.20:11434')).toBe(false);
+    expect(isLocalOllamaEndpoint('https://ollama.example.com')).toBe(false);
   });
 
   it('checks /api/tags health honestly on success and unreachable failure', async () => {

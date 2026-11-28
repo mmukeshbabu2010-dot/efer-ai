@@ -84,6 +84,11 @@ export interface PendingFallbackConsent {
   requestId: string;
   fromModelName: string;
   toModelName: string;
+  fromProviderId: string;
+  toProviderId: string;
+  fromPrivacyTier: string;
+  toPrivacyTier: string;
+  isIncognito: boolean;
   reason: string;
   errorCode: string;
 }

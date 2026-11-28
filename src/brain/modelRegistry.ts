@@ -60,8 +60,8 @@ export const INITIAL_MODEL_CATALOG: ModelDescriptor[] = [
   {
     id: 'proxy:gemini-flash',
     providerId: 'server-proxy',
-    displayName: 'Gemini Flash (Server Proxy)',
-    shortDescription: 'Server-side /api/* proxy slot (requires backend env key; never stored in browser).',
+    displayName: 'Server Proxy · Planned',
+    shortDescription: 'Planned server-side provider proxy. No /api/chat route or active provider integration is available yet.',
     capabilities: {
       chat: true,
       streaming: true,
@@ -72,7 +72,7 @@ export const INITIAL_MODEL_CATALOG: ModelDescriptor[] = [
     },
     contextWindowTokens: 32768,
     privacyTier: 'server-proxy',
-    availability: 'disabled',
+    availability: 'planned',
   },
   {
     id: 'local-gguf-planned',

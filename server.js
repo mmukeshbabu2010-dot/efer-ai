@@ -84,7 +84,6 @@ export function createProductionServer(distDir = path.resolve(process.cwd(), 'di
     if (pathname === '/api/providers' && (method === 'GET' || method === 'HEAD')) {
       const body = JSON.stringify({
         configured: {
-          gemini: Boolean(process.env.GEMINI_API_KEY),
           groq: Boolean(process.env.GROQ_API_KEY),
           openrouter: Boolean(process.env.OPENROUTER_API_KEY),
         },

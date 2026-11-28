@@ -91,14 +91,14 @@ describe('production static & SPA server', () => {
       const rawText = await res.text();
       expect(rawText).not.toContain('AIza-secret-should-never-appear-in-response');
       const parsed = JSON.parse(rawText) as {
-        configured: { gemini: boolean; groq: boolean; openrouter: boolean };
+        configured: { groq: boolean; openrouter: boolean };
         note: string;
       };
       expect(parsed.configured).toEqual({
-        gemini: true,
         groq: false,
         openrouter: false,
       });
+      expect(rawText).not.toContain('gemini');
       expect(parsed.note).toContain('server-side');
     } finally {
       if (prevGemini === undefined) delete process.env.GEMINI_API_KEY;

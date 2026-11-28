@@ -9,7 +9,8 @@ export type ModelPrivacyTier =
   | 'mock-local'
   | 'local-device'
   | 'server-proxy'
-  | 'byok-browser';
+  | 'byok-browser'
+  | 'remote-endpoint';
 
 export type ModelAvailability = 'active' | 'planned' | 'disabled';
 
@@ -86,6 +87,7 @@ export interface FallbackConsentRequest {
   toModel: ModelDescriptor;
   reason: string;
   errorCode: BrainErrorCode;
+  isIncognito: boolean;
 }
 
 export type BrainTraceStage =

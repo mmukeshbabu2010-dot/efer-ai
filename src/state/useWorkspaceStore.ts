@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  isLocalOllamaEndpoint,
   normalizeOllamaBaseUrl,
   OllamaAdapter,
 } from '../brain/adapters/OllamaAdapter';
@@ -298,7 +299,7 @@ export function useWorkspaceStore(options: WorkspaceStoreOptions = {}) {
           localExecution: true,
         },
         contextWindowTokens: 8192,
-        privacyTier: 'local-device',
+        privacyTier: isLocalOllamaEndpoint(normalizedUrl) ? 'local-device' : 'remote-endpoint',
         availability: currentAvailability,
       });
 
@@ -345,7 +346,7 @@ export function useWorkspaceStore(options: WorkspaceStoreOptions = {}) {
       if (!(adapter instanceof ServerProxyAdapter)) {
         const status: ServerProxyStatus = {
           reachable: false,
-          configured: { gemini: false, groq: false, openrouter: false },
+          configured: { groq: false, openrouter: false },
           detail: 'Server Proxy adapter is not registered.',
         };
         if (isMountedRef.current) setServerProxyStatus(status);
@@ -368,7 +369,12 @@ export function useWorkspaceStore(options: WorkspaceStoreOptions = {}) {
 
   const resolveFallbackConsent = useCallback(
     (decision: FallbackDecision) => {
-      if (decision === 'always-allow') {
+      const canRememberPermission =
+        pendingFallback !== null &&
+        !pendingFallback.isIncognito &&
+        pendingFallback.fromProviderId === pendingFallback.toProviderId &&
+        pendingFallback.fromPrivacyTier === pendingFallback.toPrivacyTier;
+      if (decision === 'always-allow' && canRememberPermission) {
         brain.setFallbackMode('always-allow');
         setFallbackModeState('always-allow');
       }
@@ -377,7 +383,7 @@ export function useWorkspaceStore(options: WorkspaceStoreOptions = {}) {
       setPendingFallback(null);
       resolver?.(decision);
     },
-    [brain],
+    [brain, pendingFallback],
   );
 
   const toggleTheme = useCallback(() => {
@@ -642,6 +648,11 @@ export function useWorkspaceStore(options: WorkspaceStoreOptions = {}) {
               requestId: consentRequest.requestId,
               fromModelName: consentRequest.fromModel.displayName,
               toModelName: consentRequest.toModel.displayName,
+              fromProviderId: consentRequest.fromModel.providerId,
+              toProviderId: consentRequest.toModel.providerId,
+              fromPrivacyTier: consentRequest.fromModel.privacyTier,
+              toPrivacyTier: consentRequest.toModel.privacyTier,
+              isIncognito: consentRequest.isIncognito,
               reason: consentRequest.reason,
               errorCode: consentRequest.errorCode,
             });
