@@ -58,7 +58,7 @@ export function PlannedView({
             <button
               type="button"
               onClick={onBackToChat}
-              className="inline-flex items-center gap-2 h-10 px-4 rounded-card bg-accent hover:bg-accent-hover text-white text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+              className="inline-flex items-center gap-2 h-10 px-4 rounded-card bg-accent hover:bg-accent-hover text-accent-text text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
             >
               <ArrowLeft className="w-4 h-4" aria-hidden="true" />
               <span>Return to General Chat</span>

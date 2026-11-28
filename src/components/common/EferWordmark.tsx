@@ -19,14 +19,14 @@ export function EferWordmark({ showIcon = true, size = 'md' }: EferWordmarkProps
         >
           <defs>
             <linearGradient id="efer-mark-grad" x1="2" y1="2" x2="22" y2="22" gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stopColor="var(--efer-accent)" />
-              <stop offset="100%" stopColor="var(--efer-accent-hover)" />
+              <stop offset="0%" stopColor="var(--efer-accent-brand)" />
+              <stop offset="100%" stopColor="var(--efer-accent)" />
             </linearGradient>
           </defs>
           <rect x="2" y="2" width="20" height="20" rx="6" fill="url(#efer-mark-grad)" />
           <path
             d="M7.5 8H16.5M7.5 12H14.5M7.5 16H16.5"
-            stroke="#FFFFFF"
+            stroke="var(--efer-accent-text)"
             strokeWidth="2"
             strokeLinecap="round"
           />

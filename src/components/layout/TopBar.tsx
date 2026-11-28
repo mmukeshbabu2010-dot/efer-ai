@@ -268,7 +268,7 @@ export function TopBar({
           type="button"
           onClick={onNewThread}
           aria-label="Start new chat"
-          className="inline-flex items-center justify-center gap-2 h-11 md:h-10 min-w-11 px-3 sm:px-3.5 rounded-card bg-accent hover:bg-accent-hover active:scale-[0.98] text-white text-xs font-medium transition-all whitespace-nowrap shrink-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+          className="inline-flex items-center justify-center gap-2 h-11 md:h-10 min-w-11 px-3 sm:px-3.5 rounded-card bg-accent hover:bg-accent-hover active:scale-[0.98] text-accent-text text-xs font-medium transition-all whitespace-nowrap shrink-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
         >
           <SquarePen className="w-4 h-4" aria-hidden="true" />
           <span className="hidden sm:inline">New chat</span>

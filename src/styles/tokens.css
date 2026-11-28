@@ -1,19 +1,22 @@
 :root {
-  /* Light Mode Palette — EFER AI Locked Tokens */
-  --efer-bg: #faf9f6;
-  --efer-rail: #f3f1ec;
+  /* Light Mode — Palette 027 (Corinthian Pink + Slate Color) */
+  --efer-bg: #faf8f7;
+  --efer-rail: #f4f1f2;
   --efer-card: #ffffff;
-  --efer-card-subtle: #f1efea;
-  --efer-text-primary: #1a1918;
-  --efer-text-secondary: #6b6660;
-  --efer-placeholder: #5f5a54;
-  --efer-border: #e5e2de;
-  --efer-accent: #7c5cff;
-  --efer-accent-hover: #6744f5;
-  --efer-accent-soft: #f1effc;
-  --efer-user-surface: #1a1918;
-  --efer-user-text: #faf9f6;
-  --efer-danger: #dc2626;
+  --efer-card-subtle: #f1edee;
+  --efer-text-primary: #1e2022;
+  --efer-text-secondary: #585b5f;
+  --efer-placeholder: #54575b;
+  --efer-border: #e5e0e2;
+  --efer-accent: #9d4459;
+  --efer-accent-hover: #86374a;
+  --efer-accent-brand: #d99ba9;
+  --efer-accent-soft: #f7eaed;
+  --efer-accent-text: #ffffff;
+  --efer-user-surface: #343638;
+  --efer-user-text: #faf8f7;
+  --efer-success: #15803d;
+  --efer-danger: #c81e3a;
   --efer-warning: #9a5b13;
 
   /* Geometry & Spacing Tokens */
@@ -31,20 +34,23 @@
 }
 
 .dark {
-  /* Dark Mode Palette — EFER AI Locked Tokens */
-  --efer-bg: #1a1918;
-  --efer-rail: #201f1d;
-  --efer-card: #242322;
-  --efer-card-subtle: #2b2927;
-  --efer-text-primary: #edecea;
-  --efer-text-secondary: #a8a29e;
-  --efer-placeholder: #b8b2ab;
-  --efer-border: #3a3835;
-  --efer-accent: #7c5cff;
-  --efer-accent-hover: #9075ff;
-  --efer-accent-soft: #2a2442;
-  --efer-user-surface: #2d2b29;
-  --efer-user-text: #edecea;
-  --efer-danger: #ef4444;
-  --efer-warning: #f59e0b;
+  /* Dark Mode — Palette 027 (Slate Charcoal + Muted Corinthian Pink) */
+  --efer-bg: #1d1f21;
+  --efer-rail: #232527;
+  --efer-card: #2a2c2f;
+  --efer-card-subtle: #343638;
+  --efer-text-primary: #f2f0f1;
+  --efer-text-secondary: #b0b3b8;
+  --efer-placeholder: #b8bbc0;
+  --efer-border: #3d4043;
+  --efer-accent: #d99ba9;
+  --efer-accent-hover: #e3b0bc;
+  --efer-accent-brand: #d99ba9;
+  --efer-accent-soft: #3a292e;
+  --efer-accent-text: #1d1f21;
+  --efer-user-surface: #343638;
+  --efer-user-text: #f2f0f1;
+  --efer-success: #4ade80;
+  --efer-danger: #f87171;
+  --efer-warning: #fbbf24;
 }

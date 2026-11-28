@@ -25,7 +25,7 @@ export function highlightTextNodes(
 
   const markClass =
     variant === 'inverted'
-      ? 'bg-accent text-white rounded-[3px] px-0.5 font-medium'
+      ? 'bg-accent text-accent-text rounded-[3px] px-0.5 font-medium'
       : 'bg-accent-soft text-text-primary border-b-2 border-accent rounded-[3px] px-0.5 font-medium';
 
   return parts.map((part, index) => {

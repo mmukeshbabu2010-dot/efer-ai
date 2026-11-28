@@ -14,9 +14,12 @@
   --color-border: var(--efer-border);
   --color-accent: var(--efer-accent);
   --color-accent-hover: var(--efer-accent-hover);
+  --color-accent-brand: var(--efer-accent-brand);
   --color-accent-soft: var(--efer-accent-soft);
+  --color-accent-text: var(--efer-accent-text);
   --color-user-surface: var(--efer-user-surface);
   --color-user-text: var(--efer-user-text);
+  --color-success: var(--efer-success);
   --color-danger: var(--efer-danger);
   --color-warning: var(--efer-warning);
 

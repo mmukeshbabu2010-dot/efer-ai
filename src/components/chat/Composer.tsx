@@ -561,7 +561,7 @@ export function Composer({
               <button
                 type="button"
                 onClick={handleRedactDraft}
-                className="h-9 sm:h-8 px-3 rounded-[10px] bg-accent hover:bg-accent-hover text-white text-xs font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                className="h-9 sm:h-8 px-3 rounded-[10px] bg-accent hover:bg-accent-hover text-accent-text text-xs font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
               >
                 Redact Secrets
               </button>
@@ -865,7 +865,7 @@ export function Composer({
                 aria-keyshortcuts="Enter Control+Enter Meta+Enter"
                 className={`inline-flex items-center justify-center w-11 h-11 md:w-10 md:h-10 rounded-pill transition-all active:scale-[0.96] shrink-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent ${
                   canSend
-                    ? 'bg-accent hover:bg-accent-hover text-white'
+                    ? 'bg-accent hover:bg-accent-hover text-accent-text'
                     : 'bg-card-subtle text-text-secondary cursor-not-allowed'
                 }`}
               >
