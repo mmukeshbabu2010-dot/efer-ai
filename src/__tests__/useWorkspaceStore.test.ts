@@ -124,4 +124,109 @@ describe('useWorkspaceStore', () => {
     expect(result.current.theme).toBe('light');
     expect(document.documentElement.classList.contains('dark')).toBe(false);
   });
+
+  it('aborts an active Incognito stream cleanly on exit without leaking chunks back', async () => {
+    const { result } = renderHook(() => useWorkspaceStore());
+
+    act(() => {
+      result.current.enterIncognito();
+    });
+
+    let pendingSend!: Promise<unknown>;
+    act(() => {
+      pendingSend = result.current.sendMessage('Mid-stream incognito question');
+    });
+
+    act(() => {
+      result.current.exitIncognito();
+    });
+
+    await act(async () => {
+      await pendingSend;
+    });
+
+    expect(result.current.isIncognito).toBe(false);
+    expect(result.current.incognitoConversation).toBeNull();
+    expect(result.current.isSubmitting).toBe(false);
+    expect(
+      result.current.conversations.some((c) =>
+        c.messages.some((m) => m.content.includes('Mid-stream incognito question')),
+      ),
+    ).toBe(false);
+    expect(result.current.activityLogs).toHaveLength(0);
+  });
+
+  it('records real routing traces in Activity Log for normal turns and excludes Incognito turns', async () => {
+    const { result } = renderHook(() => useWorkspaceStore());
+    expect(result.current.activityLogs).toHaveLength(0);
+
+    await act(async () => {
+      await result.current.sendMessage('Write a TypeScript function to sum numbers');
+    });
+
+    expect(result.current.activityLogs).toHaveLength(1);
+    const entry = result.current.activityLogs[0];
+    expect(entry.outcome).toBe('success');
+    expect(entry.intent).toBe('code');
+    expect(entry.steps.map((s) => s.stage)).toContain('intent');
+    expect(entry.steps.map((s) => s.stage)).toContain('complete');
+
+    act(() => {
+      result.current.enterIncognito();
+    });
+
+    await act(async () => {
+      await result.current.sendMessage('Secret incognito prompt');
+    });
+
+    // Incognito turns must never create Activity Log entries
+    expect(result.current.activityLogs).toHaveLength(1);
+
+    act(() => {
+      result.current.clearActivityLogs();
+    });
+    expect(result.current.activityLogs).toHaveLength(0);
+  });
+
+  it('toggles provider availability, updates Ollama configuration safely, and restores active default model', () => {
+    const { result } = renderHook(() => useWorkspaceStore());
+
+    expect(
+      result.current.availableModels.find((m) => m.id === 'ollama:llama3.2')?.availability,
+    ).toBe('disabled');
+
+    act(() => {
+      result.current.setProviderEnabled('local-ollama', true);
+    });
+
+    expect(
+      result.current.availableModels.find((m) => m.id === 'ollama:llama3.2')?.availability,
+    ).toBe('active');
+
+    let invalidRes!: { ok: boolean; error?: string };
+    act(() => {
+      invalidRes = result.current.updateOllamaConfig('ftp://bad-scheme', 'qwen2.5');
+    });
+    expect(invalidRes.ok).toBe(false);
+    expect(result.current.ollamaConfigError).toMatch(/http: or https:/i);
+
+    let validRes!: { ok: boolean; error?: string };
+    act(() => {
+      result.current.setSelectedModelId('ollama:llama3.2');
+      validRes = result.current.updateOllamaConfig('http://localhost:11434/', 'qwen2.5');
+    });
+    expect(validRes.ok).toBe(true);
+    expect(result.current.ollamaConfigError).toBeNull();
+    expect(result.current.selectedModelId).toBe('ollama:qwen2.5');
+    expect(
+      result.current.availableModels.some(
+        (m) => m.id === 'ollama:qwen2.5' && m.availability === 'active',
+      ),
+    ).toBe(true);
+
+    act(() => {
+      result.current.setProviderEnabled('local-ollama', false);
+    });
+    expect(result.current.selectedModelId).toBe('efer-demo-primary');
+  });
 });

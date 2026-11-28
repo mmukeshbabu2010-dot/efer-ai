@@ -81,6 +81,24 @@ export function createProductionServer(distDir = path.resolve(process.cwd(), 'di
       return;
     }
 
+    if (pathname === '/api/providers' && (method === 'GET' || method === 'HEAD')) {
+      const body = JSON.stringify({
+        configured: {
+          gemini: Boolean(process.env.GEMINI_API_KEY),
+          groq: Boolean(process.env.GROQ_API_KEY),
+          openrouter: Boolean(process.env.OPENROUTER_API_KEY),
+        },
+        note: 'API keys remain strictly server-side.',
+      });
+      res.writeHead(200, {
+        'Content-Type': 'application/json; charset=utf-8',
+        'Cache-Control': 'no-store',
+        'X-Content-Type-Options': 'nosniff',
+      });
+      res.end(method === 'HEAD' ? undefined : body);
+      return;
+    }
+
     if (method !== 'GET' && method !== 'HEAD') {
       res.writeHead(405, {
         'Content-Type': 'text/plain; charset=utf-8',

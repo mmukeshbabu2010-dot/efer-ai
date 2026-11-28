@@ -3,6 +3,9 @@ import {
   AlertCircle,
   ArrowUp,
   Camera,
+  Check,
+  ChevronDown,
+  Cpu,
   Eye,
   FileText,
   Image as ImageIcon,
@@ -15,6 +18,7 @@ import {
   Square,
   X,
 } from 'lucide-react';
+import type { FallbackMode, ModelDescriptor } from '../../brain/types';
 import { MarkdownPreview } from '../common/MarkdownPreview';
 
 interface SpeechRecognitionAlternativeLike {
@@ -71,6 +75,12 @@ interface ComposerProps {
   conversationKey?: string;
   isCompactViewport: boolean;
   shortcutStatusMessage: string | null;
+  availableModels: ModelDescriptor[];
+  selectedModelId: string;
+  fallbackMode: FallbackMode;
+  onSelectModel: (modelId: string) => void;
+  onChangeFallbackMode: (mode: FallbackMode) => void;
+  onStopGeneration: () => void;
   onChange: (value: string) => void;
   onSend: () => void | Promise<unknown>;
 }
@@ -203,6 +213,12 @@ export function Composer({
   conversationKey,
   isCompactViewport,
   shortcutStatusMessage,
+  availableModels,
+  selectedModelId,
+  fallbackMode,
+  onSelectModel,
+  onChangeFallbackMode,
+  onStopGeneration,
   onChange,
   onSend,
 }: ComposerProps) {
@@ -215,6 +231,7 @@ export function Composer({
 
   const [isAttachMenuOpen, setIsAttachMenuOpen] = useState(false);
   const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
+  const [isModelMenuOpen, setIsModelMenuOpen] = useState(false);
   const [composerMode, setComposerMode] = useState<'write' | 'preview'>('write');
   const [attachNotice, setAttachNotice] = useState<string | null>(null);
   const [secretMatches, setSecretMatches] = useState<string[] | null>(null);
@@ -262,6 +279,8 @@ export function Composer({
       }
       recognitionRef.current = null;
     }
+    dictationBaseRef.current = '';
+    finalTranscriptRef.current = '';
     setIsRecording(false);
     setRecordingSeconds(0);
   }, []);
@@ -307,17 +326,19 @@ export function Composer({
   }, [focusTick]);
 
   useEffect(() => {
-    if (!isAttachMenuOpen && !isShortcutsOpen && !secretMatches) return;
+    if (!isAttachMenuOpen && !isShortcutsOpen && !isModelMenuOpen && !secretMatches) return;
     const handleOutside = (event: MouseEvent) => {
       if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
         setIsAttachMenuOpen(false);
         setIsShortcutsOpen(false);
+        setIsModelMenuOpen(false);
       }
     };
     const handleEscape = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         setIsAttachMenuOpen(false);
         setIsShortcutsOpen(false);
+        setIsModelMenuOpen(false);
         setSecretMatches(null);
       }
     };
@@ -327,7 +348,7 @@ export function Composer({
       document.removeEventListener('mousedown', handleOutside);
       window.removeEventListener('keydown', handleEscape);
     };
-  }, [isAttachMenuOpen, isShortcutsOpen, secretMatches]);
+  }, [isAttachMenuOpen, isShortcutsOpen, isModelMenuOpen, secretMatches]);
 
   useEffect(() => {
     if (!isRecording) return;
@@ -489,6 +510,8 @@ export function Composer({
   };
 
   const canSend = value.trim().length > 0 && !isSubmitting;
+  const activeModel =
+    availableModels.find((m) => m.id === selectedModelId) ?? availableModels[0];
 
   return (
     <div className="px-3 sm:px-screen pt-2 pb-[max(12px,env(safe-area-inset-bottom))] bg-bg shrink-0">
@@ -772,9 +795,111 @@ export function Composer({
                 </button>
               </div>
 
-              <span className="text-[11px] font-mono text-text-secondary">
-                {composerMode === 'preview' ? 'Markdown preview' : 'Markdown supported'}
-              </span>
+              <div className="relative flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsAttachMenuOpen(false);
+                    setIsShortcutsOpen(false);
+                    setIsModelMenuOpen((prev) => !prev);
+                  }}
+                  aria-expanded={isModelMenuOpen}
+                  aria-haspopup="menu"
+                  aria-label="Select model and fallback mode"
+                  className="inline-flex items-center gap-1.5 h-8 sm:h-7 px-2.5 rounded-[9px] border border-border bg-card-subtle hover:border-accent text-[11px] font-medium text-text-primary transition-colors focus-visible:outline-2 focus-visible:outline-accent"
+                >
+                  <Cpu className="w-3 h-3 text-accent shrink-0" aria-hidden="true" />
+                  <span className="max-w-[140px] sm:max-w-[190px] truncate">
+                    {activeModel?.displayName ?? 'Select model'}
+                  </span>
+                  <ChevronDown className="w-3 h-3 text-text-secondary shrink-0" aria-hidden="true" />
+                </button>
+
+                {isModelMenuOpen && (
+                  <div
+                    role="menu"
+                    aria-label="Available models and fallback policy"
+                    className="absolute right-0 bottom-full mb-2 w-72 p-2 rounded-card bg-card border border-border shadow-lg z-40 space-y-2"
+                  >
+                    <div className="px-2 pt-1 text-[11px] font-semibold text-text-secondary">
+                      Model Registry
+                    </div>
+                    <div className="space-y-1">
+                      {availableModels.map((model) => {
+                        const isSelected = model.id === selectedModelId;
+                        const isActive = model.availability === 'active';
+                        return (
+                          <button
+                            key={model.id}
+                            type="button"
+                            role="menuitemradio"
+                            aria-checked={isSelected}
+                            disabled={!isActive}
+                            onClick={() => {
+                              onSelectModel(model.id);
+                              setIsModelMenuOpen(false);
+                            }}
+                            className={`w-full flex items-start justify-between gap-2 px-2.5 py-2 rounded-[10px] text-left transition-colors focus-visible:outline-2 focus-visible:outline-accent ${
+                              !isActive
+                                ? 'opacity-55 cursor-not-allowed text-text-secondary'
+                                : isSelected
+                                  ? 'bg-accent-soft border border-accent text-text-primary'
+                                  : 'hover:bg-card-subtle text-text-primary'
+                            }`}
+                          >
+                            <div className="min-w-0 space-y-0.5">
+                              <div className="text-xs font-medium truncate">
+                                {model.displayName}
+                              </div>
+                              <div className="text-[11px] text-text-secondary leading-snug">
+                                {model.shortDescription}
+                              </div>
+                            </div>
+                            {isSelected && (
+                              <Check className="w-3.5 h-3.5 text-accent mt-0.5 shrink-0" aria-hidden="true" />
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    <div className="pt-2 border-t border-border space-y-1.5 px-1">
+                      <div className="flex items-center justify-between gap-2 text-[11px]">
+                        <span className="font-medium text-text-secondary">
+                          Fallback permission
+                        </span>
+                        <span className="font-mono text-text-primary">
+                          {fallbackMode === 'ask-first' ? 'Ask first' : 'Always allow'}
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-1">
+                        <button
+                          type="button"
+                          onClick={() => onChangeFallbackMode('ask-first')}
+                          className={`h-7 rounded-[8px] text-[11px] font-medium border transition-colors focus-visible:outline-2 focus-visible:outline-accent ${
+                            fallbackMode === 'ask-first'
+                              ? 'bg-accent-soft border-accent text-text-primary'
+                              : 'bg-bg border-border text-text-secondary hover:text-text-primary'
+                          }`}
+                        >
+                          Ask first
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onChangeFallbackMode('always-allow')}
+                          className={`h-7 rounded-[8px] text-[11px] font-medium border transition-colors focus-visible:outline-2 focus-visible:outline-accent ${
+                            fallbackMode === 'always-allow'
+                              ? 'bg-accent-soft border-accent text-text-primary'
+                              : 'bg-bg border-border text-text-secondary hover:text-text-primary'
+                          }`}
+                        >
+                          Always allow
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
 
             {composerMode === 'preview' && (
@@ -864,6 +989,18 @@ export function Composer({
               >
                 <Mic className="w-4 h-4" aria-hidden="true" />
               </button>
+
+              {isSubmitting ? (
+                <button
+                  type="button"
+                  onClick={onStopGeneration}
+                  aria-label="Stop generation"
+                  title="Stop streaming response"
+                  className="inline-flex items-center justify-center w-11 h-11 md:w-10 md:h-10 rounded-pill bg-danger text-danger-text hover:opacity-90 active:scale-[0.96] transition-all shrink-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-danger"
+                >
+                  <Square className="w-3.5 h-3.5 fill-current" aria-hidden="true" />
+                </button>
+              ) : null}
 
               <button
                 type="button"

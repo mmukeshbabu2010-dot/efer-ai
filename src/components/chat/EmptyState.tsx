@@ -37,8 +37,8 @@ export function EmptyState({
             How can I help you today?
           </p>
           <p className="text-[13px] text-text-secondary max-w-lg mx-auto leading-relaxed">
-            Phase 1 Browser Foundation · General Chat is active in memory. External AI providers
-            connect through EFER Brain in Phase 2.
+            Phase 2 · EFER Brain Demo Provider active for streaming and permission-based fallback
+            testing. External provider API keys are not connected yet.
           </p>
         </div>
 

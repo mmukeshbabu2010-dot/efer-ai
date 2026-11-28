@@ -33,6 +33,7 @@ interface SidebarProps {
   isDesktopOpen: boolean;
   isMobileOpen: boolean;
   isIncognito: boolean;
+  activityLogCount: number;
   onCloseMobile: () => void;
   onExitIncognito: () => void;
   onNewThread: () => void;
@@ -81,6 +82,7 @@ export function Sidebar({
   isDesktopOpen,
   isMobileOpen,
   isIncognito,
+  activityLogCount,
   onCloseMobile,
   onExitIncognito,
   onNewThread,
@@ -251,9 +253,15 @@ export function Sidebar({
           </h2>
           <ul className="space-y-1">
             {EFER_PLANNED_SECTIONS.map((section) => {
-              const isSelected =
-                activeView.kind === 'planned-section' &&
-                activeView.sectionId === section.id;
+              const isActivity = section.id === 'activity';
+              const isSettings = section.id === 'settings';
+              const isActiveSection = isActivity || isSettings;
+              const isSelected = isActivity
+                ? activeView.kind === 'activity'
+                : isSettings
+                  ? activeView.kind === 'settings'
+                  : activeView.kind === 'planned-section' &&
+                    activeView.sectionId === section.id;
 
               return (
                 <li key={section.id}>
@@ -267,13 +275,19 @@ export function Sidebar({
                     }`}
                   >
                     <span className="flex items-center gap-2.5 min-w-0">
-                      <span className="text-text-secondary">
+                      <span className={isActiveSection ? 'text-accent' : 'text-text-secondary'}>
                         {renderSectionIcon(section.id)}
                       </span>
                       <span className="truncate">{section.label}</span>
                     </span>
                     <span className="text-[11px] font-mono text-text-secondary shrink-0">
-                      Planned
+                      {isActivity
+                        ? activityLogCount > 0
+                          ? `Active · ${activityLogCount}`
+                          : 'Active'
+                        : isSettings
+                          ? 'Active'
+                          : 'Planned'}
                     </span>
                   </button>
                 </li>
@@ -314,7 +328,7 @@ export function Sidebar({
         </div>
 
         <p className="px-1 text-xs text-text-secondary">
-          Phase 1 · In-memory workspace
+          Phase 4 · Brain, Activity &amp; Providers
         </p>
       </div>
     </div>

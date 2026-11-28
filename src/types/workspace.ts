@@ -44,6 +44,8 @@ export type MessageRole = 'user' | 'assistant' | 'notice';
 export const AI_REACTION_OPTIONS = ['👍', '❤️', '💡', '🎯'] as const;
 export type MessageReaction = (typeof AI_REACTION_OPTIONS)[number];
 
+export type MessageStatus = 'streaming' | 'complete' | 'error' | 'aborted';
+
 export interface ChatMessage {
   id: string;
   role: MessageRole;
@@ -52,6 +54,14 @@ export interface ChatMessage {
   reactions?: MessageReaction[];
   isPreviewSample?: boolean;
   regenerationCount?: number;
+  status?: MessageStatus;
+  modelId?: string;
+  modelName?: string;
+  providerId?: string;
+  isFallback?: boolean;
+  fallbackReason?: string;
+  latencyMs?: number;
+  errorCode?: string;
 }
 
 export interface Conversation {
@@ -67,10 +77,42 @@ export interface Conversation {
 
 export interface SendMessageResult {
   ok: boolean;
-  reason?: 'empty' | 'too-long' | 'in-flight';
+  reason?: 'empty' | 'too-long' | 'in-flight' | 'aborted' | 'error';
+}
+
+export interface PendingFallbackConsent {
+  requestId: string;
+  fromModelName: string;
+  toModelName: string;
+  reason: string;
+  errorCode: string;
+}
+
+export type ActivityOutcome = 'success' | 'fallback' | 'error' | 'aborted';
+
+export interface ActivityLogEntry {
+  id: string;
+  requestId: string;
+  timestamp: string;
+  intent: 'general' | 'code' | 'reasoning' | 'writing';
+  modelId: string;
+  modelName: string;
+  providerId: string;
+  outcome: ActivityOutcome;
+  latencyMs: number;
+  fallbackUsed: boolean;
+  fallbackReason?: string;
+  errorCode?: string;
+  steps: Array<{
+    timestamp: string;
+    stage: 'intent' | 'context' | 'route' | 'fallback' | 'stream' | 'complete' | 'error';
+    detail: string;
+  }>;
 }
 
 export type ActiveWorkspaceView =
   | { kind: 'chat' }
+  | { kind: 'activity' }
+  | { kind: 'settings' }
   | { kind: 'planned-capability'; capabilityId: CapabilityId }
   | { kind: 'planned-section'; sectionId: PlannedSectionId };

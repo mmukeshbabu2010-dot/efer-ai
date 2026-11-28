@@ -75,4 +75,38 @@ describe('production static & SPA server', () => {
       await new Promise<void>((resolve) => unbuiltServer.close(() => resolve()));
     }
   });
+
+  it('reports /api/providers configuration booleans without leaking secret values', async () => {
+    const prevGemini = process.env.GEMINI_API_KEY;
+    const prevGroq = process.env.GROQ_API_KEY;
+    const prevOpenRouter = process.env.OPENROUTER_API_KEY;
+    process.env.GEMINI_API_KEY = 'AIza-secret-should-never-appear-in-response';
+    delete process.env.GROQ_API_KEY;
+    delete process.env.OPENROUTER_API_KEY;
+
+    try {
+      const res = await fetch(`${baseUrl}/api/providers`);
+      expect(res.status).toBe(200);
+      expect(res.headers.get('cache-control')).toBe('no-store');
+      const rawText = await res.text();
+      expect(rawText).not.toContain('AIza-secret-should-never-appear-in-response');
+      const parsed = JSON.parse(rawText) as {
+        configured: { gemini: boolean; groq: boolean; openrouter: boolean };
+        note: string;
+      };
+      expect(parsed.configured).toEqual({
+        gemini: true,
+        groq: false,
+        openrouter: false,
+      });
+      expect(parsed.note).toContain('server-side');
+    } finally {
+      if (prevGemini === undefined) delete process.env.GEMINI_API_KEY;
+      else process.env.GEMINI_API_KEY = prevGemini;
+      if (prevGroq === undefined) delete process.env.GROQ_API_KEY;
+      else process.env.GROQ_API_KEY = prevGroq;
+      if (prevOpenRouter === undefined) delete process.env.OPENROUTER_API_KEY;
+      else process.env.OPENROUTER_API_KEY = prevOpenRouter;
+    }
+  });
 });

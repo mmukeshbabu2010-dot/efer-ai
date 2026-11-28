@@ -11,9 +11,9 @@ export const EFER_CAPABILITIES: CapabilityDefinition[] = [
     label: 'General Chat',
     shortDescription: 'Core conversational workspace for questions, drafting, and reasoning.',
     status: 'active',
-    phaseLabel: 'Active · Phase 1',
+    phaseLabel: 'Active · Phase 4 Brain',
     roadmapSummary:
-      'Active in Phase 1 as the browser foundation. Messages are stored in memory until Phase 2 connects the EFER Brain Demonstration Provider.',
+      'Active with EFER Brain: EFER Demo, optional Local Ollama, and optional Server Proxy (/api/*) routing, streaming, context windowing, error normalization, and permission-based fallback.',
   },
   {
     id: 'code',
@@ -75,25 +75,25 @@ export const EFER_PLANNED_SECTIONS: PlannedSectionDefinition[] = [
   {
     id: 'settings',
     label: 'Settings & Providers',
-    phaseLabel: 'Planned · Phase 2 & 4',
+    phaseLabel: 'Active · Phase 4',
     description:
-      'Centralised provider management (server-side proxy keys, local Ollama/GGUF integration, and fallback consent rules) will live here once EFER Brain is wired.',
+      'Centralised provider management for EFER Demo, Local Ollama, and Server Proxy (/api/*) adapters plus permission-based fallback rules.',
     plannedItems: [
-      'Modular provider toggles (Gemini, Groq, OpenRouter, Local GGUF / Ollama)',
-      'Server-side secret handling without exposing API keys in browser storage',
+      'Modular provider toggles (EFER Demo, Local Ollama, and Server Proxy /api/*)',
+      'Server-side environment keys inspected without exposing secrets in browser storage',
       'Permission-based fallback preference (Ask First vs. Always Allow)',
     ],
   },
   {
     id: 'activity',
     label: 'Activity Log',
-    phaseLabel: 'Planned · Phase 3 & 6',
+    phaseLabel: 'Active · Phase 3',
     description:
       'Transparent routing history showing intent detection, provider selection, fallback decisions, and real response timings.',
     plannedItems: [
       'Filterable log categories: All, Success, Fallback, and Error',
       'Step-by-step EFER Brain routing trace with exact timestamps',
-      'Zero simulated telemetry — populated only from real provider requests',
+      'Zero simulated telemetry — populated only from real requests (Incognito turns excluded)',
     ],
   },
   {

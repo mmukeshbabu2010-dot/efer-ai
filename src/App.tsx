@@ -1,15 +1,33 @@
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { EyeOff, Info, WifiOff, X } from 'lucide-react';
 import { Composer } from './components/chat/Composer';
 import { EmptyState } from './components/chat/EmptyState';
+import { FallbackConsentCard } from './components/chat/FallbackConsentCard';
 import { ThreadView } from './components/chat/ThreadView';
 import { Sidebar } from './components/layout/Sidebar';
 import { TopBar } from './components/layout/TopBar';
-import { PlannedView } from './components/roadmap/PlannedView';
 import { useNetworkStatus } from './hooks/useNetworkStatus';
 import { useVisualViewport } from './hooks/useVisualViewport';
 import { useWorkspaceStore } from './state/useWorkspaceStore';
 import { downloadConversation, type ExportFormat } from './utils/exportConversation';
+
+const ActivityLogView = lazy(() =>
+  import('./components/activity/ActivityLogView').then((mod) => ({
+    default: mod.ActivityLogView,
+  })),
+);
+
+const SettingsView = lazy(() =>
+  import('./components/settings/SettingsView').then((mod) => ({
+    default: mod.SettingsView,
+  })),
+);
+
+const PlannedView = lazy(() =>
+  import('./components/roadmap/PlannedView').then((mod) => ({
+    default: mod.PlannedView,
+  })),
+);
 
 export function App() {
   const store = useWorkspaceStore();
@@ -58,20 +76,28 @@ export function App() {
   }, [clearAndFocusComposer, store.activeView.kind]);
 
   const headerTitle =
-    store.activeView.kind === 'planned-capability'
-      ? store.activeCapability.label
-      : store.activeView.kind === 'planned-section' && store.activePlannedSection
-        ? store.activePlannedSection.label
-        : store.activeConversation?.title ?? 'General Chat';
+    store.activeView.kind === 'activity'
+      ? 'Activity Log'
+      : store.activeView.kind === 'settings'
+        ? 'Settings & Providers'
+        : store.activeView.kind === 'planned-capability'
+          ? store.activeCapability.label
+          : store.activeView.kind === 'planned-section' && store.activePlannedSection
+            ? store.activePlannedSection.label
+            : store.activeConversation?.title ?? 'General Chat';
 
   const headerSubtitle =
-    store.activeView.kind === 'planned-capability'
-      ? store.activeCapability.phaseLabel
-      : store.activeView.kind === 'planned-section' && store.activePlannedSection
-        ? store.activePlannedSection.phaseLabel
-        : store.isIncognito
-          ? 'Incognito · RAM only'
-          : 'General Chat';
+    store.activeView.kind === 'activity'
+      ? 'Phase 3 · Routing Traces'
+      : store.activeView.kind === 'settings'
+        ? 'Phase 4 · Providers & Fallback'
+        : store.activeView.kind === 'planned-capability'
+          ? store.activeCapability.phaseLabel
+          : store.activeView.kind === 'planned-section' && store.activePlannedSection
+            ? store.activePlannedSection.phaseLabel
+            : store.isIncognito
+              ? 'Incognito · RAM only'
+              : 'General Chat';
 
   const canExport =
     store.activeView.kind === 'chat' &&
@@ -100,6 +126,7 @@ export function App() {
         isDesktopOpen={store.isDesktopSidebarOpen}
         isMobileOpen={store.isMobileDrawerOpen}
         isIncognito={store.isIncognito}
+        activityLogCount={store.activityLogs.length}
         onCloseMobile={() => store.setIsMobileDrawerOpen(false)}
         onExitIncognito={store.exitIncognito}
         onNewThread={store.createNewThread}
@@ -201,22 +228,82 @@ export function App() {
         )}
 
         <main className="flex-1 flex flex-col min-h-0">
-          {store.activeView.kind === 'planned-capability' ? (
-            <PlannedView
-              title={store.activeCapability.label}
-              phaseLabel={store.activeCapability.phaseLabel}
-              description={store.activeCapability.roadmapSummary}
-              onBackToChat={() => store.selectCapability('general-chat')}
-            />
+          {store.activeView.kind === 'activity' ? (
+            <Suspense
+              fallback={
+                <div className="flex-1 flex items-center justify-center text-xs text-text-secondary">
+                  Loading Activity Log…
+                </div>
+              }
+            >
+              <ActivityLogView
+                entries={store.activityLogs}
+                onClear={store.clearActivityLogs}
+                onBackToChat={() => store.selectCapability('general-chat')}
+              />
+            </Suspense>
+          ) : store.activeView.kind === 'settings' ? (
+            <Suspense
+              fallback={
+                <div className="flex-1 flex items-center justify-center text-xs text-text-secondary">
+                  Loading Settings &amp; Providers…
+                </div>
+              }
+            >
+              <SettingsView
+                availableModels={store.availableModels}
+                fallbackMode={store.fallbackMode}
+                ollamaBaseUrl={store.ollamaBaseUrl}
+                ollamaModelName={store.ollamaModelName}
+                ollamaConfigError={store.ollamaConfigError}
+                ollamaHealth={store.ollamaHealth}
+                isCheckingOllama={store.isCheckingOllama}
+                serverProxyStatus={store.serverProxyStatus}
+                isCheckingProxy={store.isCheckingProxy}
+                onSetProviderEnabled={store.setProviderEnabled}
+                onUpdateOllamaConfig={store.updateOllamaConfig}
+                onTestOllamaConnection={store.testOllamaConnection}
+                onCheckServerProxy={store.checkServerProxy}
+                onChangeFallbackMode={store.setFallbackMode}
+                onSelectModelAndReturn={(modelId) => {
+                  store.setSelectedModelId(modelId);
+                  store.selectCapability('general-chat');
+                }}
+                onBackToChat={() => store.selectCapability('general-chat')}
+              />
+            </Suspense>
+          ) : store.activeView.kind === 'planned-capability' ? (
+            <Suspense
+              fallback={
+                <div className="flex-1 flex items-center justify-center text-xs text-text-secondary">
+                  Loading view…
+                </div>
+              }
+            >
+              <PlannedView
+                title={store.activeCapability.label}
+                phaseLabel={store.activeCapability.phaseLabel}
+                description={store.activeCapability.roadmapSummary}
+                onBackToChat={() => store.selectCapability('general-chat')}
+              />
+            </Suspense>
           ) : store.activeView.kind === 'planned-section' &&
             store.activePlannedSection ? (
-            <PlannedView
-              title={store.activePlannedSection.label}
-              phaseLabel={store.activePlannedSection.phaseLabel}
-              description={store.activePlannedSection.description}
-              highlights={store.activePlannedSection.plannedItems}
-              onBackToChat={() => store.selectCapability('general-chat')}
-            />
+            <Suspense
+              fallback={
+                <div className="flex-1 flex items-center justify-center text-xs text-text-secondary">
+                  Loading view…
+                </div>
+              }
+            >
+              <PlannedView
+                title={store.activePlannedSection.label}
+                phaseLabel={store.activePlannedSection.phaseLabel}
+                description={store.activePlannedSection.description}
+                highlights={store.activePlannedSection.plannedItems}
+                onBackToChat={() => store.selectCapability('general-chat')}
+              />
+            </Suspense>
           ) : (
             <>
               {store.activeConversation &&
@@ -244,6 +331,15 @@ export function App() {
                 />
               )}
 
+              {store.pendingFallback && (
+                <div className="px-3 sm:px-screen pt-2 shrink-0">
+                  <FallbackConsentCard
+                    consent={store.pendingFallback}
+                    onDecision={store.resolveFallbackConsent}
+                  />
+                </div>
+              )}
+
               <Composer
                 value={store.composerText}
                 error={store.composerError}
@@ -253,6 +349,12 @@ export function App() {
                 conversationKey={store.activeConversation?.id ?? 'none'}
                 isCompactViewport={isCompactHeight}
                 shortcutStatusMessage={shortcutAnnouncement}
+                availableModels={store.availableModels}
+                selectedModelId={store.selectedModelId}
+                fallbackMode={store.fallbackMode}
+                onSelectModel={store.setSelectedModelId}
+                onChangeFallbackMode={store.setFallbackMode}
+                onStopGeneration={store.stopGeneration}
                 onChange={store.updateComposerText}
                 onSend={() => store.sendMessage()}
               />

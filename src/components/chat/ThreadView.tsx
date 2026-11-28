@@ -6,6 +6,7 @@ import {
   ChevronUp,
   Copy,
   Info,
+  Loader2,
   MoreVertical,
   RotateCcw,
   Search,
@@ -404,8 +405,9 @@ export function ThreadView({
               <button
                 type="button"
                 role="menuitem"
+                disabled={message.status === 'streaming'}
                 onClick={() => handleRegenerateMessage(message.id)}
-                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-[10px] text-xs font-medium text-text-primary hover:bg-card-subtle text-left transition-colors focus-visible:outline-2 focus-visible:outline-accent"
+                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-[10px] text-xs font-medium text-text-primary hover:bg-card-subtle disabled:opacity-50 disabled:cursor-not-allowed text-left transition-colors focus-visible:outline-2 focus-visible:outline-accent"
               >
                 <RotateCcw className="w-3.5 h-3.5 text-accent shrink-0" aria-hidden="true" />
                 <span>Regenerate response</span>
@@ -607,6 +609,8 @@ export function ThreadView({
             }
 
             const isSpeaking = speakingMessageId === message.id;
+            const isStreaming = message.status === 'streaming';
+            const isError = message.status === 'error';
             const activeReactions = message.reactions ?? [];
 
             return (
@@ -619,14 +623,53 @@ export function ThreadView({
               >
                 <div
                   {...longPressHandlers}
-                  className={`w-full max-w-[92%] sm:max-w-[85%] px-4 py-3.5 rounded-card bg-card border text-[15px] text-text-primary leading-relaxed select-text ${
-                    isActiveMatch ? 'border-accent ring-2 ring-accent/30' : 'border-border'
+                  className={`w-full max-w-[92%] sm:max-w-[85%] px-4 py-3.5 rounded-card bg-card border text-[15px] text-text-primary leading-relaxed select-text space-y-2 ${
+                    isActiveMatch
+                      ? 'border-accent ring-2 ring-accent/30'
+                      : isError
+                        ? 'border-danger/50'
+                        : 'border-border'
                   }`}
                 >
-                  <MarkdownPreview
-                    content={message.content}
-                    highlightQuery={activeHighlightQuery}
-                  />
+                  {isStreaming && !message.content.trim() ? (
+                    <div
+                      role="status"
+                      aria-live="polite"
+                      className="inline-flex items-center gap-2 text-xs text-text-secondary"
+                    >
+                      <Loader2 className="w-3.5 h-3.5 animate-spin text-accent" aria-hidden="true" />
+                      <span>Generating via {message.modelName ?? 'EFER Brain'}…</span>
+                    </div>
+                  ) : (
+                    <MarkdownPreview
+                      content={message.content}
+                      highlightQuery={activeHighlightQuery}
+                    />
+                  )}
+
+                  {isStreaming && message.content.trim().length > 0 && (
+                    <div className="inline-flex items-center gap-1.5 text-[11px] font-mono text-text-secondary">
+                      <Loader2 className="w-3 h-3 animate-spin text-accent" aria-hidden="true" />
+                      <span>Streaming…</span>
+                    </div>
+                  )}
+
+                  {(message.modelName || message.isFallback || message.status === 'aborted') && (
+                    <div className="pt-1 border-t border-border/60 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] font-mono text-text-secondary">
+                      {message.modelName && <span>{message.modelName}</span>}
+                      {message.isFallback && (
+                        <span className="text-accent font-medium">
+                          · Fallback used
+                        </span>
+                      )}
+                      {message.status === 'aborted' && (
+                        <span className="text-warning">· Stopped</span>
+                      )}
+                      {typeof message.latencyMs === 'number' && message.status === 'complete' && (
+                        <span>· {message.latencyMs}ms</span>
+                      )}
+                    </div>
+                  )}
                 </div>
                 <div className="flex flex-wrap items-center gap-2 px-1">
                   <time className="text-xs font-mono tabular-nums text-text-secondary mr-1">
@@ -637,16 +680,18 @@ export function ThreadView({
                     type="button"
                     onClick={() => handleToggleSpeak(message.id, message.content)}
                     aria-pressed={isSpeaking}
-                    disabled={!isSpeechSupported}
+                    disabled={!isSpeechSupported || isStreaming}
                     title={
                       !isSpeechSupported
                         ? 'Speech synthesis is not supported in this browser'
-                        : isSpeaking
-                          ? 'Stop reading aloud'
-                          : 'Read message aloud'
+                        : isStreaming
+                          ? 'Wait for response to finish streaming'
+                          : isSpeaking
+                            ? 'Stop reading aloud'
+                            : 'Read message aloud'
                     }
                     className={`inline-flex items-center gap-1.5 min-h-9 sm:min-h-8 px-2.5 rounded-[10px] border text-xs font-medium transition-colors focus-visible:outline-2 focus-visible:outline-accent ${
-                      !isSpeechSupported
+                      !isSpeechSupported || isStreaming
                         ? 'border-border text-text-secondary opacity-60 cursor-not-allowed'
                         : isSpeaking
                           ? 'bg-accent-soft border-accent text-accent'
@@ -699,7 +744,7 @@ export function ThreadView({
           })}
 
           <p className="pt-2 text-[13px] text-text-secondary">
-            EFER AI Phase 1 preview — verify important info once providers are connected in Phase 2.
+            EFER AI Phase 2 Demo — local mock responses routed through EFER Brain (no external API keys connected).
           </p>
 
           <div ref={bottomRef} />

@@ -130,4 +130,102 @@ describe('EFER AI App integration', () => {
     await user.keyboard('{Escape}');
     expect(screen.queryByRole('dialog', { name: 'Navigation menu' })).not.toBeInTheDocument();
   });
+
+  it('streams Demo responses and prompts FallbackConsentCard before switching models', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    const input = screen.getByPlaceholderText('Ask anything...');
+    await user.type(input, 'Check [[demo:rate-limit] fallback handling');
+    await user.click(screen.getByRole('button', { name: 'Send message' }));
+
+    const consentDialog = await screen.findByRole('alertdialog');
+    expect(
+      within(consentDialog).getByText(/Switch to EFER Demo · Fast Fallback\?/i),
+    ).toBeInTheDocument();
+
+    await user.click(within(consentDialog).getByRole('button', { name: 'Allow Once' }));
+
+    await waitFor(
+      () => {
+        expect(
+          within(screen.getByRole('main')).getByText(/Processed your prompt in local Phase 2 demo mode/i),
+        ).toBeInTheDocument();
+      },
+      { timeout: 3000 },
+    );
+    expect(
+      within(screen.getByRole('main')).getByText(/Fallback used/i),
+    ).toBeInTheDocument();
+    expect(
+      within(screen.getByRole('main')).getAllByText(/EFER Demo · Fast Fallback/i).length,
+    ).toBeGreaterThanOrEqual(1);
+  });
+
+  it('opens Activity Log view, inspects recorded routing trace, filters categories, and clears log', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    const input = screen.getByPlaceholderText('Ask anything...');
+    await user.type(input, 'Write a TypeScript interface');
+    await user.click(screen.getByRole('button', { name: 'Send message' }));
+
+    await waitFor(
+      () => {
+        expect(
+          within(screen.getByRole('main')).getByText(/Processed your prompt in local Phase 2 demo mode/i),
+        ).toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: 'Stop generation' })).not.toBeInTheDocument();
+      },
+      { timeout: 3000 },
+    );
+
+    await user.click(screen.getByRole('button', { name: /Activity Log/i }));
+
+    const heading = await screen.findByRole('heading', { name: 'Activity Log' });
+    expect(heading).toBeInTheDocument();
+
+    expect(await screen.findByText('intent:code')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /Trace \(/i }));
+    expect(screen.getByText(/Classified intent as "code"/i)).toBeInTheDocument();
+
+    await user.click(screen.getByRole('tab', { name: /Fallback/i }));
+    expect(screen.getByText(/No fallback entries recorded/i)).toBeInTheDocument();
+
+    await user.click(screen.getByRole('tab', { name: /^All/i }));
+    await user.click(screen.getByRole('button', { name: 'Clear Log' }));
+    expect(screen.getByText(/No EFER Brain activity recorded yet/i)).toBeInTheDocument();
+  });
+
+  it('opens Settings & Providers, toggles Local Ollama into Composer, and updates fallback policy', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(screen.getByRole('button', { name: /Settings & Providers/i }));
+
+    expect(
+      await screen.findByRole('heading', { level: 2, name: 'Settings & Providers' }),
+    ).toBeInTheDocument();
+    expect(await screen.findByText(/Zero Browser API Key Storage/i)).toBeInTheDocument();
+
+    const ollamaSwitch = screen.getByRole('switch', { name: 'Enable Local Ollama' });
+    expect(ollamaSwitch).toHaveAttribute('aria-checked', 'false');
+    await user.click(ollamaSwitch);
+    expect(ollamaSwitch).toHaveAttribute('aria-checked', 'true');
+
+    const modelInput = screen.getByLabelText('Local Model Name');
+    await user.clear(modelInput);
+    await user.type(modelInput, 'mistral');
+    await user.click(screen.getByRole('button', { name: 'Save Ollama Config' }));
+    expect(screen.getByText(/Saved Ollama endpoint and local model name/i)).toBeInTheDocument();
+
+    const alwaysAllowRadio = screen.getByRole('radio', { name: /Always allow/i });
+    await user.click(alwaysAllowRadio);
+    expect(alwaysAllowRadio).toHaveAttribute('aria-checked', 'true');
+
+    await user.click(screen.getByRole('button', { name: 'Use in Chat' }));
+    const modelBtn = screen.getByRole('button', { name: 'Select model and fallback mode' });
+    expect(modelBtn).toHaveTextContent('Ollama · mistral');
+  });
 });
