@@ -21,6 +21,7 @@
   --color-user-text: var(--efer-user-text);
   --color-success: var(--efer-success);
   --color-danger: var(--efer-danger);
+  --color-danger-text: var(--efer-danger-text);
   --color-warning: var(--efer-warning);
 
   --radius-card: var(--efer-radius-card);

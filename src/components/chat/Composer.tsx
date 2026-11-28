@@ -7,6 +7,7 @@ import {
   FileText,
   Image as ImageIcon,
   Keyboard,
+  Loader2,
   Mic,
   PenLine,
   Plus,
@@ -67,10 +68,11 @@ interface ComposerProps {
   isSubmitting: boolean;
   focusTick: number;
   forceSendTick: number;
+  conversationKey?: string;
   isCompactViewport: boolean;
   shortcutStatusMessage: string | null;
   onChange: (value: string) => void;
-  onSend: () => void;
+  onSend: () => void | Promise<unknown>;
 }
 
 type AttachmentKind = 'Image' | 'File' | 'Camera';
@@ -198,6 +200,7 @@ export function Composer({
   isSubmitting,
   focusTick,
   forceSendTick,
+  conversationKey,
   isCompactViewport,
   shortcutStatusMessage,
   onChange,
@@ -338,10 +341,14 @@ export function Composer({
     return () => {
       stopVoiceInput(true);
     };
-  }, [stopVoiceInput]);
+  }, [stopVoiceInput, conversationKey]);
 
   const handleSendAction = useCallback(
     (bypassSecretCheck = false) => {
+      if (isSubmitting) {
+        return;
+      }
+
       if (isRecording) {
         stopVoiceInput();
       }
@@ -357,10 +364,10 @@ export function Composer({
       }
 
       setSecretMatches(null);
-      onSend();
+      void onSend();
       setComposerMode('write');
     },
-    [isRecording, onSend, stopVoiceInput, value],
+    [isRecording, isSubmitting, onSend, stopVoiceInput, value],
   );
 
   useEffect(() => {
@@ -380,7 +387,8 @@ export function Composer({
   const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key === 'Enter' && !event.shiftKey && !event.ctrlKey && !event.metaKey) {
       event.preventDefault();
-      handleSendAction();
+      if (event.repeat || isSubmitting) return;
+      handleSendAction(false);
     }
   };
 
@@ -693,7 +701,7 @@ export function Composer({
                     {formatTimer(recordingSeconds)}
                   </span>
                   <span className="text-xs text-text-secondary truncate">
-                    Listening — dictating into text field
+                    Listening — browser speech recognition may process audio via an external service
                   </span>
                 </div>
 
@@ -703,7 +711,7 @@ export function Composer({
                     stopVoiceInput();
                     window.requestAnimationFrame(() => textareaRef.current?.focus());
                   }}
-                  className="inline-flex items-center gap-1.5 h-8 px-3 rounded-pill bg-danger text-white text-xs font-medium hover:opacity-90 active:scale-[0.98] transition-all shrink-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-danger"
+                  className="inline-flex items-center gap-1.5 h-8 px-3 rounded-pill bg-danger text-danger-text text-xs font-medium hover:opacity-90 active:scale-[0.98] transition-all shrink-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-danger"
                 >
                   <Square className="w-2.5 h-2.5 fill-current" aria-hidden="true" />
                   <span>Stop</span>
@@ -846,7 +854,7 @@ export function Composer({
                     ? 'Voice input is not supported in this browser'
                     : isRecording
                       ? 'Stop voice input'
-                      : 'Voice input'
+                      : 'Voice input (browser speech recognition may process audio externally)'
                 }
                 className={`inline-flex items-center justify-center w-11 h-11 md:w-10 md:h-10 rounded-pill transition-all active:scale-[0.96] shrink-0 focus-visible:outline-2 focus-visible:outline-accent ${
                   isRecording
@@ -861,7 +869,8 @@ export function Composer({
                 type="button"
                 onClick={() => handleSendAction(false)}
                 disabled={!canSend}
-                aria-label="Send message"
+                aria-busy={isSubmitting}
+                aria-label={isSubmitting ? 'Sending message' : 'Send message'}
                 aria-keyshortcuts="Enter Control+Enter Meta+Enter"
                 className={`inline-flex items-center justify-center w-11 h-11 md:w-10 md:h-10 rounded-pill transition-all active:scale-[0.96] shrink-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent ${
                   canSend
@@ -869,7 +878,11 @@ export function Composer({
                     : 'bg-card-subtle text-text-secondary cursor-not-allowed'
                 }`}
               >
-                <ArrowUp className="w-4 h-4" aria-hidden="true" />
+                {isSubmitting ? (
+                  <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
+                ) : (
+                  <ArrowUp className="w-4 h-4" aria-hidden="true" />
+                )}
               </button>
             </div>
           </div>

@@ -1,5 +1,5 @@
 :root {
-  /* Light Mode — Palette 027 (Corinthian Pink + Slate Color) */
+  /* Light Mode — Web-adapted interpretation of Palette 027 (Corinthian Pink + Slate Color) */
   --efer-bg: #faf8f7;
   --efer-rail: #f4f1f2;
   --efer-card: #ffffff;
@@ -17,6 +17,7 @@
   --efer-user-text: #faf8f7;
   --efer-success: #15803d;
   --efer-danger: #c81e3a;
+  --efer-danger-text: #ffffff;
   --efer-warning: #9a5b13;
 
   /* Geometry & Spacing Tokens */
@@ -34,7 +35,7 @@
 }
 
 .dark {
-  /* Dark Mode — Palette 027 (Slate Charcoal + Muted Corinthian Pink) */
+  /* Dark Mode — Web-adapted Charcoal Slate + Muted Corinthian Pink */
   --efer-bg: #1d1f21;
   --efer-rail: #232527;
   --efer-card: #2a2c2f;
@@ -52,5 +53,6 @@
   --efer-user-text: #f2f0f1;
   --efer-success: #4ade80;
   --efer-danger: #f87171;
+  --efer-danger-text: #1d1f21;
   --efer-warning: #fbbf24;
 }

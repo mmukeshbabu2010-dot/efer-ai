@@ -19,8 +19,8 @@ export function EferWordmark({ showIcon = true, size = 'md' }: EferWordmarkProps
         >
           <defs>
             <linearGradient id="efer-mark-grad" x1="2" y1="2" x2="22" y2="22" gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stopColor="var(--efer-accent-brand)" />
-              <stop offset="100%" stopColor="var(--efer-accent)" />
+              <stop offset="0%" stopColor="var(--efer-accent)" />
+              <stop offset="100%" stopColor="var(--efer-accent-hover)" />
             </linearGradient>
           </defs>
           <rect x="2" y="2" width="20" height="20" rx="6" fill="url(#efer-mark-grad)" />
@@ -33,7 +33,7 @@ export function EferWordmark({ showIcon = true, size = 'md' }: EferWordmarkProps
         </svg>
       )}
       <span
-        className={`${textSizeClass} font-bold tracking-[-0.02em] leading-none text-text-primary dark:text-white`}
+        className={`${textSizeClass} font-bold tracking-[-0.02em] leading-none text-text-primary`}
       >
         EFER
       </span>

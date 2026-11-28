@@ -62,6 +62,12 @@ export interface Conversation {
   createdAt: string;
   updatedAt: string;
   isSamplePreview?: boolean;
+  isIncognito?: boolean;
+}
+
+export interface SendMessageResult {
+  ok: boolean;
+  reason?: 'empty' | 'too-long' | 'in-flight';
 }
 
 export type ActiveWorkspaceView =

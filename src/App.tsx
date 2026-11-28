@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { EyeOff, WifiOff } from 'lucide-react';
+import { EyeOff, Info, WifiOff, X } from 'lucide-react';
 import { Composer } from './components/chat/Composer';
 import { EmptyState } from './components/chat/EmptyState';
 import { ThreadView } from './components/chat/ThreadView';
@@ -25,7 +25,7 @@ export function App() {
   useEffect(() => {
     setIsThreadSearchOpen(false);
     setThreadSearchQuery('');
-  }, [store.activeConversationId, store.activeView.kind]);
+  }, [store.activeConversationId, store.activeView.kind, store.isIncognito]);
 
   const handleOpenMobileDrawer = () => {
     if (document.activeElement instanceof HTMLElement) {
@@ -47,7 +47,7 @@ export function App() {
       }
 
       if (event.key === 'Enter') {
-        if (store.activeView.kind !== 'chat') return;
+        if (event.repeat || store.activeView.kind !== 'chat') return;
         event.preventDefault();
         setComposerForceSendTick((tick) => tick + 1);
       }
@@ -69,17 +69,24 @@ export function App() {
       ? store.activeCapability.phaseLabel
       : store.activeView.kind === 'planned-section' && store.activePlannedSection
         ? store.activePlannedSection.phaseLabel
-        : 'General Chat';
+        : store.isIncognito
+          ? 'Incognito · RAM only'
+          : 'General Chat';
 
   const canExport =
-    store.activeView.kind === 'chat' && store.activeConversation !== null;
+    store.activeView.kind === 'chat' &&
+    store.activeConversation !== null &&
+    !store.isIncognito &&
+    !store.activeConversation.isIncognito;
   const canSearch =
     store.activeView.kind === 'chat' &&
     store.activeConversation !== null &&
     store.activeConversation.messages.length > 0;
 
   const handleExport = (format: ExportFormat) => {
-    if (!store.activeConversation) return;
+    if (!store.activeConversation || store.isIncognito || store.activeConversation.isIncognito) {
+      return;
+    }
     downloadConversation(store.activeConversation, format);
   };
 
@@ -92,7 +99,9 @@ export function App() {
         theme={store.theme}
         isDesktopOpen={store.isDesktopSidebarOpen}
         isMobileOpen={store.isMobileDrawerOpen}
+        isIncognito={store.isIncognito}
         onCloseMobile={() => store.setIsMobileDrawerOpen(false)}
+        onExitIncognito={store.exitIncognito}
         onNewThread={store.createNewThread}
         onSelectThread={store.selectThread}
         onDeleteThread={store.deleteThread}
@@ -136,13 +145,44 @@ export function App() {
           <div
             role="status"
             aria-live="polite"
-            className="flex items-center justify-center gap-2 px-3 sm:px-screen py-2 border-b border-accent/30 bg-accent-soft text-xs text-text-primary shrink-0"
+            className="flex items-center justify-between gap-3 px-3 sm:px-screen py-2 border-b border-accent/30 bg-accent-soft text-xs text-text-primary shrink-0"
           >
-            <EyeOff className="w-3.5 h-3.5 text-accent shrink-0" aria-hidden="true" />
-            <span>
-              Incognito mode active — conversation stays strictly in memory and bypasses persistent
-              storage and long-term memory writes.
+            <span className="flex items-center gap-2 min-w-0">
+              <EyeOff className="w-3.5 h-3.5 text-accent shrink-0" aria-hidden="true" />
+              <span>
+                Incognito active — messages stay in temporary RAM only, are excluded from normal
+                history and exports, and are wiped on exit. (Does not prevent browser, network, OS,
+                or external speech/AI provider logging.)
+              </span>
             </span>
+            <button
+              type="button"
+              onClick={store.exitIncognito}
+              className="px-2.5 py-1 rounded-[8px] bg-card border border-border text-xs font-medium text-text-primary hover:border-accent shrink-0 focus-visible:outline-2 focus-visible:outline-accent"
+            >
+              Exit
+            </button>
+          </div>
+        )}
+
+        {!store.isIncognito && store.workspaceNotice && (
+          <div
+            role="status"
+            aria-live="polite"
+            className="flex items-center justify-between gap-2 px-3 sm:px-screen py-2 border-b border-border bg-card-subtle text-xs text-text-primary shrink-0"
+          >
+            <span className="flex items-center gap-2 min-w-0">
+              <Info className="w-3.5 h-3.5 text-accent shrink-0" aria-hidden="true" />
+              <span>{store.workspaceNotice}</span>
+            </span>
+            <button
+              type="button"
+              onClick={() => store.setWorkspaceNotice(null)}
+              aria-label="Dismiss notice"
+              className="p-1 rounded-card text-text-secondary hover:text-text-primary focus-visible:outline-2 focus-visible:outline-accent shrink-0"
+            >
+              <X className="w-3.5 h-3.5" aria-hidden="true" />
+            </button>
           </div>
         )}
 
@@ -210,6 +250,7 @@ export function App() {
                 isSubmitting={store.isSubmitting}
                 focusTick={store.composerFocusTick}
                 forceSendTick={composerForceSendTick}
+                conversationKey={store.activeConversation?.id ?? 'none'}
                 isCompactViewport={isCompactHeight}
                 shortcutStatusMessage={shortcutAnnouncement}
                 onChange={store.updateComposerText}

@@ -3,6 +3,7 @@ import {
   Activity,
   BookmarkCheck,
   Code2,
+  EyeOff,
   FileText,
   Film,
   Image as ImageIcon,
@@ -31,7 +32,9 @@ interface SidebarProps {
   theme: ThemeMode;
   isDesktopOpen: boolean;
   isMobileOpen: boolean;
+  isIncognito: boolean;
   onCloseMobile: () => void;
+  onExitIncognito: () => void;
   onNewThread: () => void;
   onSelectThread: (id: string) => void;
   onDeleteThread: (id: string) => void;
@@ -77,7 +80,9 @@ export function Sidebar({
   theme,
   isDesktopOpen,
   isMobileOpen,
+  isIncognito,
   onCloseMobile,
+  onExitIncognito,
   onNewThread,
   onSelectThread,
   onDeleteThread,
@@ -117,7 +122,7 @@ export function Sidebar({
           className="w-full flex items-center justify-center gap-2 h-11 md:h-10 px-4 rounded-card bg-card border border-border text-sm font-medium text-text-primary hover:bg-accent-soft hover:border-accent active:scale-[0.99] transition-all focus-visible:outline-2 focus-visible:outline-accent"
         >
           <SquarePen className="w-4 h-4 text-accent" aria-hidden="true" />
-          <span>New conversation</span>
+          <span>{isIncognito ? 'Reset Incognito chat' : 'New conversation'}</span>
         </button>
       </div>
 
@@ -125,6 +130,28 @@ export function Sidebar({
         aria-label="Workspace navigation"
         className="flex-1 overflow-y-auto overscroll-contain px-3 pb-4 space-y-6"
       >
+        {isIncognito && (
+          <div className="p-3 rounded-card bg-accent-soft border border-accent space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-text-primary">
+                <EyeOff className="w-3.5 h-3.5 text-accent shrink-0" aria-hidden="true" />
+                <span>Incognito Session</span>
+              </span>
+              <span className="text-[11px] font-mono text-text-secondary">RAM only</span>
+            </div>
+            <p className="text-xs text-text-secondary leading-relaxed">
+              Isolated from normal conversations and excluded from exports. Wiped on exit.
+            </p>
+            <button
+              type="button"
+              onClick={onExitIncognito}
+              className="w-full h-9 px-3 rounded-[10px] bg-card border border-border text-xs font-medium text-text-primary hover:border-accent transition-colors focus-visible:outline-2 focus-visible:outline-accent"
+            >
+              Exit &amp; Wipe Incognito
+            </button>
+          </div>
+        )}
+
         <div>
           <h2 className="px-2 pb-2 text-xs font-semibold text-text-secondary">
             Conversations
@@ -132,16 +159,26 @@ export function Sidebar({
           <ul className="space-y-1">
             {conversations.map((thread) => {
               const isSelected =
-                activeView.kind === 'chat' && thread.id === activeConversationId;
+                !isIncognito &&
+                activeView.kind === 'chat' &&
+                thread.id === activeConversationId;
               return (
                 <li key={thread.id} className="group flex items-center gap-1">
                   <button
                     type="button"
+                    disabled={isIncognito}
                     onClick={() => onSelectThread(thread.id)}
+                    title={
+                      isIncognito
+                        ? 'Exit Incognito mode to view normal conversations'
+                        : thread.title
+                    }
                     className={`flex-1 min-w-0 flex items-center justify-between gap-2 px-2.5 py-2 rounded-card text-left text-sm transition-colors focus-visible:outline-2 focus-visible:outline-accent ${
-                      isSelected
-                        ? 'bg-accent-soft text-text-primary font-medium border border-accent'
-                        : 'text-text-primary hover:bg-card border border-transparent'
+                      isIncognito
+                        ? 'text-text-secondary opacity-55 cursor-not-allowed border border-transparent'
+                        : isSelected
+                          ? 'bg-accent-soft text-text-primary font-medium border border-accent'
+                          : 'text-text-primary hover:bg-card border border-transparent'
                     }`}
                   >
                     <span className="truncate">{thread.title}</span>
@@ -153,9 +190,10 @@ export function Sidebar({
                   </button>
                   <button
                     type="button"
+                    disabled={isIncognito}
                     onClick={() => onDeleteThread(thread.id)}
                     aria-label={`Delete conversation ${thread.title}`}
-                    className="opacity-70 md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 inline-flex items-center justify-center w-8 h-8 rounded-card text-text-secondary hover:text-danger hover:bg-card transition-all shrink-0 focus-visible:outline-2 focus-visible:outline-accent"
+                    className="opacity-70 md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 inline-flex items-center justify-center w-8 h-8 rounded-card text-text-secondary hover:text-danger hover:bg-card disabled:opacity-30 disabled:cursor-not-allowed transition-all shrink-0 focus-visible:outline-2 focus-visible:outline-accent"
                   >
                     <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
                   </button>

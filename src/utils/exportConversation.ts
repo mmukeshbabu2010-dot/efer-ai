@@ -22,7 +22,17 @@ function formatRoleHeading(role: string): string {
   }
 }
 
+export function filterExportableConversations(
+  conversations: Conversation[],
+): Conversation[] {
+  return conversations.filter((item) => !item.isIncognito);
+}
+
 export function buildConversationMarkdown(conversation: Conversation): string {
+  if (conversation.isIncognito) {
+    throw new Error('Incognito conversations cannot be exported with normal history.');
+  }
+
   const exportedAt = new Date().toISOString();
   const lines: string[] = [
     `# ${conversation.title}`,
@@ -55,6 +65,10 @@ export function buildConversationMarkdown(conversation: Conversation): string {
 }
 
 export function buildConversationJson(conversation: Conversation): string {
+  if (conversation.isIncognito) {
+    throw new Error('Incognito conversations cannot be exported with normal history.');
+  }
+
   const payload = {
     schema: 'efer-ai-conversation-v1',
     exportedAt: new Date().toISOString(),
@@ -67,6 +81,10 @@ export function downloadConversation(
   conversation: Conversation,
   format: ExportFormat,
 ): void {
+  if (conversation.isIncognito) {
+    throw new Error('Incognito conversations cannot be exported.');
+  }
+
   const dateStamp = new Date().toISOString().slice(0, 10);
   const baseName = `efer-ai-${slugifyFilename(conversation.title)}-${dateStamp}`;
 

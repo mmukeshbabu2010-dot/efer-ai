@@ -154,11 +154,11 @@ export function TopBar({
           type="button"
           onClick={onToggleIncognito}
           aria-pressed={isIncognito}
-          aria-label={isIncognito ? 'Disable incognito mode' : 'Enable incognito mode'}
+          aria-label={isIncognito ? 'Exit incognito mode' : 'Enable incognito mode'}
           title={
             isIncognito
-              ? 'Incognito mode on — bypasses localStorage, IndexedDB, and memory writes'
-              : 'Enable incognito mode (bypass persistent storage and memory)'
+              ? 'Incognito active — isolated in temporary RAM and wiped on exit'
+              : 'Start an isolated Incognito session (cleared on exit)'
           }
           className={`inline-flex items-center justify-center gap-2 h-11 md:h-10 min-w-11 px-2.5 sm:px-3 rounded-card border text-xs font-medium transition-all whitespace-nowrap shrink-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent active:scale-[0.98] ${
             isIncognito
@@ -197,9 +197,11 @@ export function TopBar({
             aria-haspopup="menu"
             aria-label="Export conversation"
             title={
-              canExport
-                ? 'Export current conversation as Markdown or JSON'
-                : 'Open a conversation to export'
+              isIncognito
+                ? 'Export is disabled while Incognito mode is active'
+                : canExport
+                  ? 'Export current conversation as Markdown or JSON'
+                  : 'Open a conversation to export'
             }
             className={`inline-flex items-center justify-center gap-2 h-11 md:h-10 min-w-11 px-2.5 sm:px-3 rounded-card border text-xs font-medium transition-all whitespace-nowrap shrink-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent ${
               canExport
