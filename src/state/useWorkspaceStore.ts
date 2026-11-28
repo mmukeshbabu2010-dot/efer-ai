@@ -772,9 +772,11 @@ export function useWorkspaceStore(options: WorkspaceStoreOptions = {}) {
               ...msg,
               status: isAborted ? 'aborted' : 'error',
               errorCode: event.error.code,
-              content: isAborted
-                ? streamedText || 'Generation stopped before completion.'
-                : event.error.message,
+              content: streamedText || (
+                isAborted
+                  ? 'Generation stopped before completion.'
+                  : event.error.message
+              ),
             }));
             recordActivity({
               requestId,

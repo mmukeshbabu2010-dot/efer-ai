@@ -207,7 +207,10 @@ describe('EferBrain orchestrator', () => {
     expect(events.some((event) => event.type === 'delta' && event.text === 'partial answer')).toBe(true);
     expect(events.some((event) => event.type === 'fallback-pending' || event.type === 'fallback-switched')).toBe(false);
     const error = events.find((event) => event.type === 'error');
-    expect(error?.type === 'error' && error.error.fallbackEligible).toBe(false);
+    expect(error).toMatchObject({
+      type: 'error',
+      error: { fallbackEligible: false },
+    });
   });
 
   it('aborts streaming cleanly when AbortSignal fires', async () => {

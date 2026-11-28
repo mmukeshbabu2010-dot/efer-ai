@@ -28,6 +28,8 @@ describe('OllamaAdapter', () => {
     );
     expect(isLocalOllamaEndpoint('http://localhost:11434')).toBe(true);
     expect(isLocalOllamaEndpoint('http://127.0.0.1:11434')).toBe(true);
+    expect(isLocalOllamaEndpoint('http://127.0.0.2:11434')).toBe(true);
+    expect(isLocalOllamaEndpoint('http://127.255.255.254:11434')).toBe(true);
     expect(isLocalOllamaEndpoint('http://192.168.1.20:11434')).toBe(false);
     expect(isLocalOllamaEndpoint('https://ollama.example.com')).toBe(false);
   });
@@ -44,6 +46,10 @@ describe('OllamaAdapter', () => {
     const okStatus = await adapter.checkHealth();
     expect(okStatus.healthy).toBe(true);
     expect(okStatus.detail).toContain('2 local models detected');
+    expect(healthyFetch).toHaveBeenCalledWith(
+      'http://localhost:11434/api/tags',
+      expect.objectContaining({ redirect: 'error' }),
+    );
 
     const failingFetch = vi.fn(async () => {
       throw new Error('Connection refused');
@@ -87,6 +93,10 @@ describe('OllamaAdapter', () => {
       chunks.push(chunk);
     }
 
+    expect(mockFetch).toHaveBeenCalledWith(
+      'http://localhost:11434/api/chat',
+      expect.objectContaining({ redirect: 'error' }),
+    );
     expect(chunks).toEqual([
       { type: 'delta', text: 'Hello ' },
       { type: 'delta', text: 'world!' },

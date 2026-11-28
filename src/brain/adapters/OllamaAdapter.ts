@@ -11,14 +11,26 @@ export interface OllamaAdapterOptions {
   fetchImpl?: typeof fetch;
 }
 
+function isLoopbackHostname(hostname: string): boolean {
+  const normalized = hostname.toLowerCase();
+  if (normalized === 'localhost' || normalized === '[::1]' || normalized === '::1') {
+    return true;
+  }
+  const ipv4 = normalized.split('.').map(Number);
+  return (
+    ipv4.length === 4 &&
+    ipv4.every((part) => Number.isInteger(part) && part >= 0 && part <= 255) &&
+    ipv4[0] === 127
+  );
+}
+
 export function normalizeOllamaBaseUrl(rawUrl: string): string {
   const trimmed = rawUrl.trim().replace(/\/+$/, '');
   const parsed = new URL(trimmed);
   if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
     throw new Error('Ollama endpoint must use http: or https:.');
   }
-  const hostname = parsed.hostname.toLowerCase();
-  const isLoopback = hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '[::1]' || hostname === '::1';
+  const isLoopback = isLoopbackHostname(parsed.hostname);
   if (parsed.protocol === 'http:' && !isLoopback) {
     throw new Error('Remote Ollama endpoints must use HTTPS. HTTP is allowed only for localhost/loopback.');
   }
@@ -27,8 +39,8 @@ export function normalizeOllamaBaseUrl(rawUrl: string): string {
 
 export function isLocalOllamaEndpoint(rawUrl: string): boolean {
   try {
-    const hostname = new URL(normalizeOllamaBaseUrl(rawUrl)).hostname.toLowerCase();
-    return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '[::1]' || hostname === '::1';
+    const hostname = new URL(normalizeOllamaBaseUrl(rawUrl)).hostname;
+    return isLoopbackHostname(hostname);
   } catch {
     return false;
   }
@@ -65,6 +77,7 @@ export class OllamaAdapter implements ProviderAdapter {
     try {
       const response = await this.fetchImpl(`${this.baseUrl}/api/tags`, {
         method: 'GET',
+        redirect: 'error',
       });
       if (!response.ok) {
         return {
@@ -108,6 +121,7 @@ export class OllamaAdapter implements ProviderAdapter {
     try {
       response = await this.fetchImpl(`${this.baseUrl}/api/chat`, {
         method: 'POST',
+        redirect: 'error',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           model: modelName,
