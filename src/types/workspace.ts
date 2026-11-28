@@ -62,6 +62,7 @@ export interface ChatMessage {
   fallbackReason?: string;
   latencyMs?: number;
   errorCode?: string;
+  errorMessage?: string;
 }
 
 export interface Conversation {

@@ -654,6 +654,12 @@ export function ThreadView({
                     </div>
                   )}
 
+                  {isError && message.errorMessage && (
+                    <div role="alert" className="pt-2 text-xs text-danger">
+                      Generation interrupted: {message.errorMessage}
+                    </div>
+                  )}
+
                   {(message.modelName || message.isFallback || message.status === 'aborted') && (
                     <div className="pt-1 border-t border-border/60 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] font-mono text-text-secondary">
                       {message.modelName && <span>{message.modelName}</span>}

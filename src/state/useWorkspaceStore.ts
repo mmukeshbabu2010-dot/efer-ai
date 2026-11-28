@@ -772,6 +772,7 @@ export function useWorkspaceStore(options: WorkspaceStoreOptions = {}) {
               ...msg,
               status: isAborted ? 'aborted' : 'error',
               errorCode: event.error.code,
+              errorMessage: !isAborted && streamedText ? event.error.message : undefined,
               content: streamedText || (
                 isAborted
                   ? 'Generation stopped before completion.'
