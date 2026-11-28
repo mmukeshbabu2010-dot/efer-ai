@@ -3,6 +3,7 @@ import {
   AlertCircle,
   ArrowLeft,
   CheckCircle2,
+  ChevronDown,
   Cpu,
   Eye,
   EyeOff,
@@ -497,7 +498,7 @@ export function SettingsView({
   };
 
   return (
-    <div className="flex-1 overflow-y-auto overscroll-contain px-3.5 sm:px-screen py-5 sm:py-8">
+    <div className="flex-1 overflow-y-auto overscroll-contain px-3.5 sm:px-screen pt-5 pb-8 sm:py-8">
       <div className="max-w-3xl mx-auto space-y-6">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="space-y-1">
@@ -534,7 +535,7 @@ export function SettingsView({
               Custom BYOK keys stay strictly in your browser&apos;s{' '}
               <code className="font-mono text-text-primary">localStorage</code>{' '}
               (<code className="font-mono text-text-primary">efer-byok-providers-v1</code>) and
-              connect directly from your browser—never transmitted to{' '}
+              connect directly from your browserânever transmitted to{' '}
               <code className="font-mono text-text-primary">/api/chat</code> or{' '}
               <code className="font-mono text-text-primary">server.js</code>. Server Proxy
               credentials remain strictly in backend environment variables.
@@ -569,7 +570,7 @@ export function SettingsView({
           </div>
           {normalizedSearchTerms.length > 0 && (
             <p className="text-[11px] font-mono tabular-nums text-text-secondary px-0.5">
-              Showing {filteredByokProviders.length} of {byokProviders.length} custom APIs ·{' '}
+              Showing {filteredByokProviders.length} of {byokProviders.length} custom APIs Â·{' '}
               {visibleModularCount} of {totalModularCount} modular providers
             </p>
           )}
@@ -626,11 +627,11 @@ export function SettingsView({
               onSubmit={handleSaveByokSubmit}
               className="p-4 rounded-card bg-card border border-border space-y-4"
             >
-              <div className="flex items-center justify-between gap-2">
-                <h4 className="text-sm font-semibold text-text-primary">
+              <div className="flex flex-col items-start gap-1 min-w-0">
+                <h4 className="text-sm font-semibold text-text-primary whitespace-nowrap">
                   {editingByokId ? 'Edit Custom API' : 'Add Custom API'}
                 </h4>
-                <span className="text-[11px] font-mono text-text-secondary">
+                <span className="text-[11px] font-mono text-text-secondary break-all">
                   Stored locally in efer-byok-providers-v1
                 </span>
               </div>
@@ -643,20 +644,23 @@ export function SettingsView({
                   >
                     Quick Preset
                   </label>
-                  <select
-                    id="efer-byok-preset"
-                    value={byokPresetId}
-                    onChange={(event) =>
-                      handlePresetChange(event.target.value as ByokPresetId)
-                    }
-                    className="w-full h-9 px-2.5 rounded-[10px] bg-bg border border-border text-xs text-text-primary focus:outline-none focus:border-accent"
-                  >
-                    {BYOK_PRESETS.map((preset) => (
-                      <option key={preset.id} value={preset.id}>
-                        {preset.label}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="relative">
+                    <select
+                      id="efer-byok-preset"
+                      value={byokPresetId}
+                      onChange={(event) =>
+                        handlePresetChange(event.target.value as ByokPresetId)
+                      }
+                      className="w-full h-9 appearance-none pl-2.5 pr-8 rounded-[10px] bg-bg border border-border text-xs text-text-primary focus:outline-none focus:border-accent"
+                    >
+                      {BYOK_PRESETS.map((preset) => (
+                        <option key={preset.id} value={preset.id}>
+                          {preset.label}
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-text-secondary" aria-hidden="true" />
+                  </div>
                 </div>
 
                 <div className="space-y-1">
@@ -674,7 +678,7 @@ export function SettingsView({
                       setByokDisplayName(event.target.value);
                       setByokFormError(null);
                     }}
-                    placeholder="My Groq Key"
+                    placeholder={`My ${selectedPreset.label} Key`}
                     className="w-full h-9 px-3 rounded-[10px] bg-bg border border-border text-xs text-text-primary placeholder:text-placeholder focus:outline-none focus:border-accent"
                   />
                 </div>
@@ -832,7 +836,7 @@ export function SettingsView({
                     className={`w-3.5 h-3.5 ${isTestingByok ? 'animate-spin' : ''}`}
                     aria-hidden="true"
                   />
-                  <span>{isTestingByok ? 'Testing…' : 'Test Connection'}</span>
+                  <span>{isTestingByok ? 'Testingâ¦' : 'Test Connection'}</span>
                 </button>
 
                 <div className="flex items-center gap-2">
@@ -894,18 +898,18 @@ export function SettingsView({
                           <span className="text-sm font-semibold text-text-primary">
                             {provider.displayName}
                           </span>
-                          <span aria-hidden="true">·</span>
+                          <span aria-hidden="true">Â·</span>
                           <span>{presetLabel}</span>
-                          <span aria-hidden="true">·</span>
+                          <span aria-hidden="true">Â·</span>
                           <span className="font-mono text-text-primary">{provider.modelId}</span>
                         </div>
                         <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11px] font-mono text-text-secondary">
                           <span className="truncate max-w-[260px] sm:max-w-md">
                             {provider.baseUrl}
                           </span>
-                          <span aria-hidden="true">·</span>
+                          <span aria-hidden="true">Â·</span>
                           <span>Key {maskApiKey(provider.apiKey)}</span>
-                          <span aria-hidden="true">·</span>
+                          <span aria-hidden="true">Â·</span>
                           <span>{provider.enabled ? 'Active' : 'Inactive'}</span>
                         </div>
                       </div>
@@ -1023,9 +1027,9 @@ export function SettingsView({
                     <Cpu className="w-4 h-4 text-accent shrink-0" aria-hidden="true" />
                     <span>EFER Demo Provider</span>
                   </span>
-                  <span aria-hidden="true">·</span>
+                  <span aria-hidden="true">Â·</span>
                   <span className="font-mono">mock-demo</span>
-                  <span aria-hidden="true">·</span>
+                  <span aria-hidden="true">Â·</span>
                   <span>{demoEnabled ? 'Enabled' : 'Disabled'}</span>
                 </div>
                 <p className="text-xs text-text-secondary leading-relaxed">
@@ -1064,9 +1068,9 @@ export function SettingsView({
                     <HardDrive className="w-4 h-4 text-accent shrink-0" aria-hidden="true" />
                     <span>Local Ollama</span>
                   </span>
-                  <span aria-hidden="true">·</span>
+                  <span aria-hidden="true">Â·</span>
                   <span className="font-mono">local-ollama</span>
-                  <span aria-hidden="true">·</span>
+                  <span aria-hidden="true">Â·</span>
                   <span>{ollamaEnabled ? 'Enabled' : 'Disabled'}</span>
                 </div>
                 <p className="text-xs text-text-secondary leading-relaxed">
@@ -1157,7 +1161,7 @@ export function SettingsView({
                     className={`w-3.5 h-3.5 ${isCheckingOllama ? 'animate-spin' : ''}`}
                     aria-hidden="true"
                   />
-                  <span>{isCheckingOllama ? 'Testing…' : 'Test Connection'}</span>
+                  <span>{isCheckingOllama ? 'Testingâ¦' : 'Test Connection'}</span>
                 </button>
 
                 {ollamaEnabled && ollamaDescriptor && (
@@ -1220,9 +1224,9 @@ export function SettingsView({
                     <Server className="w-4 h-4 text-accent shrink-0" aria-hidden="true" />
                     <span>Server Proxy (/api/*)</span>
                   </span>
-                  <span aria-hidden="true">·</span>
+                  <span aria-hidden="true">Â·</span>
                   <span className="font-mono">server-proxy</span>
-                  <span aria-hidden="true">·</span>
+                  <span aria-hidden="true">Â·</span>
                   <span>{proxyEnabled ? 'Enabled' : 'Disabled'}</span>
                 </div>
                 <p className="text-xs text-text-secondary leading-relaxed">
@@ -1263,7 +1267,7 @@ export function SettingsView({
                   className={`w-3.5 h-3.5 ${isCheckingProxy ? 'animate-spin' : ''}`}
                   aria-hidden="true"
                 />
-                <span>{isCheckingProxy ? 'Checking…' : 'Check Proxy Status'}</span>
+                <span>{isCheckingProxy ? 'Checkingâ¦' : 'Check Proxy Status'}</span>
               </button>
 
               {proxyEnabled && proxyDescriptor && (
@@ -1321,7 +1325,7 @@ export function SettingsView({
                 <span className="text-sm font-semibold text-text-primary">
                   {ggufPlanned.displayName}
                 </span>
-                <span aria-hidden="true">·</span>
+                <span aria-hidden="true">Â·</span>
                 <span className="font-mono">Roadmap</span>
               </div>
               <p className="text-xs text-text-secondary">{ggufPlanned.shortDescription}</p>
